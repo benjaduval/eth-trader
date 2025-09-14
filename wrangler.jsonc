@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "eth-trader",
+  "name": "eth-trader-pro",
   "compatibility_date": "2025-09-14",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": [
@@ -20,7 +20,7 @@
     {
       "binding": "DB",
       "database_name": "eth-trader-production",
-      "database_id": "" // Sera rempli après création de la DB
+      "database_id": "568a62ac-792b-4622-99ae-48f24b00f94c"
     }
   ]
   
