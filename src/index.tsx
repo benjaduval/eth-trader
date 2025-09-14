@@ -438,7 +438,7 @@ app.get('/', (c) => {
             </div>
         </div>
         
-        <script src="/static/app.js"></script>
+        <script src="/static/app-simple.js"></script>
     </body>
     </html>
   `)
