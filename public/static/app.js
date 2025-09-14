@@ -1,0 +1,376 @@
+/**
+ * Frontend JavaScript pour ETH Trader Dashboard
+ * Interface de trading en temps réel avec métriques et graphiques
+ */
+
+class ETHTraderApp {
+    constructor() {
+        this.apiBase = '/api';
+        this.refreshInterval = 30000; // 30 secondes
+        this.priceChart = null;
+        this.isAutoRefreshEnabled = true;
+        
+        this.init();
+    }
+
+    async init() {
+        console.log('🚀 Initialisation ETH Trader Dashboard...');
+        
+        try {
+            await this.checkHealth();
+            await this.loadDashboard();
+            this.setupAutoRefresh();
+            this.setupEventListeners();
+            
+            console.log('✅ Dashboard initialisé avec succès');
+        } catch (error) {
+            console.error('❌ Erreur initialisation:', error);
+            this.showError('Erreur de connexion au serveur');
+        }
+    }
+
+    async checkHealth() {
+        const response = await fetch(`${this.apiBase}/health`);
+        const data = await response.json();
+        
+        if (!data.status === 'healthy') {
+            throw new Error('Service indisponible');
+        }
+        
+        console.log('✅ Service healthy:', data);
+    }
+
+    async loadDashboard() {
+        const loading = document.getElementById('loading');
+        const dashboard = document.getElementById('dashboard');
+        
+        try {
+            const response = await fetch(`${this.apiBase}/dashboard?include_market=true`);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Erreur dashboard');
+            }
+            
+            this.renderDashboard(result.dashboard);
+            
+            loading.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            
+        } catch (error) {
+            console.error('Erreur chargement dashboard:', error);
+            loading.innerHTML = `
+                <i class=\"fas fa-exclamation-triangle text-2xl text-red-400\"></i>
+                <p class=\"mt-2 text-red-400\">Erreur: ${error.message}</p>
+                <button onclick=\"location.reload()\" class=\"mt-4 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700\">
+                    Réessayer
+                </button>
+            `;
+        }
+    }
+
+    renderDashboard(data) {
+        const dashboard = document.getElementById('dashboard');
+        
+        dashboard.innerHTML = `
+            <!-- Header avec métriques principales -->
+            <div class=\"grid grid-cols-1 md:grid-cols-4 gap-6 mb-8\">
+                ${this.renderMetricCard('Prix ETH', `$${data.current_price?.toFixed(2) || '0'}`, 'fas fa-coins', 'text-yellow-400')}
+                ${this.renderMetricCard('Balance', `$${data.current_balance?.toFixed(2) || '10000'}`, 'fas fa-wallet', 'text-green-400')}
+                ${this.renderMetricCard('Positions', data.active_positions?.length || 0, 'fas fa-chart-line', 'text-blue-400')}
+                ${this.renderMetricCard('Win Rate', `${((data.metrics?.win_rate || 0) * 100).toFixed(1)}%`, 'fas fa-trophy', 'text-purple-400')}
+            </div>
+
+            <!-- Actions rapides -->
+            <div class=\"mb-8\">
+                <div class=\"bg-gray-800 rounded-lg p-6\">
+                    <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                        <i class=\"fas fa-bolt mr-2 text-yellow-400\"></i>
+                        Actions Rapides
+                    </h2>
+                    <div class=\"flex flex-wrap gap-4\">
+                        <button onclick=\"app.generateSignal()\" class=\"px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors\">
+                            <i class=\"fas fa-magic mr-2\"></i>Générer Signal
+                        </button>
+                        <button onclick=\"app.refreshData()\" class=\"px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors\">
+                            <i class=\"fas fa-sync mr-2\"></i>Actualiser
+                        </button>
+                        <button onclick=\"app.toggleAutoRefresh()\" class=\"px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors\" id=\"autoRefreshBtn\">
+                            <i class=\"fas fa-pause mr-2\"></i>Auto-Refresh: ON
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphique des prix et positions -->
+            <div class=\"grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8\">
+                <div class=\"bg-gray-800 rounded-lg p-6\">
+                    <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                        <i class=\"fas fa-chart-area mr-2 text-blue-400\"></i>
+                        Prix ETH (24h)
+                    </h2>
+                    <div class=\"h-64\">
+                        <canvas id=\"priceChart\"></canvas>
+                    </div>
+                </div>
+
+                <div class=\"bg-gray-800 rounded-lg p-6\">
+                    <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                        <i class=\"fas fa-list mr-2 text-green-400\"></i>
+                        Positions Ouvertes
+                    </h2>
+                    <div id=\"activePositions\" class=\"space-y-3\">
+                        ${this.renderActivePositions(data.active_positions || [])}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prédictions et signaux -->
+            <div class=\"grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8\">
+                <div class=\"bg-gray-800 rounded-lg p-6\">
+                    <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                        <i class=\"fas fa-crystal-ball mr-2 text-purple-400\"></i>
+                        Prédictions TimesFM
+                    </h2>
+                    <div id=\"predictions\" class=\"space-y-3\">
+                        ${this.renderPredictions(data.latest_predictions || [])}
+                    </div>
+                </div>
+
+                <div class=\"bg-gray-800 rounded-lg p-6\">
+                    <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                        <i class=\"fas fa-history mr-2 text-indigo-400\"></i>
+                        Trades Récents
+                    </h2>
+                    <div id=\"recentTrades\" class=\"space-y-3\">
+                        ${this.renderRecentTrades(data.recent_trades || [])}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Métriques de performance détaillées -->
+            <div class=\"bg-gray-800 rounded-lg p-6 mb-8\">
+                <h2 class=\"text-xl font-bold mb-4 flex items-center\">
+                    <i class=\"fas fa-analytics mr-2 text-red-400\"></i>
+                    Métriques de Performance (30j)
+                </h2>
+                ${this.renderPerformanceMetrics(data.metrics || {})}
+            </div>
+
+            <!-- Footer avec timestamp -->
+            <div class=\"text-center text-gray-400 text-sm\">
+                Dernière mise à jour: ${new Date().toLocaleString('fr-FR')}
+            </div>
+        `;
+
+        // Initialiser le graphique des prix
+        this.initPriceChart();
+        
+        // Charger les données historiques pour le graphique
+        this.loadPriceHistory();
+    }
+
+    renderMetricCard(title, value, icon, iconColor) {
+        return `
+            <div class=\"bg-gray-800 rounded-lg p-6\">
+                <div class=\"flex items-center justify-between\">
+                    <div>
+                        <p class=\"text-gray-400 text-sm\">${title}</p>
+                        <p class=\"text-2xl font-bold\">${value}</p>
+                    </div>
+                    <i class=\"${icon} text-3xl ${iconColor}\"></i>
+                </div>
+            </div>
+        `;
+    }
+
+    renderActivePositions(positions) {
+        if (!positions.length) {
+            return '<p class=\"text-gray-400 text-center py-8\">Aucune position ouverte</p>';
+        }
+
+        return positions.map(pos => `
+            <div class=\"bg-gray-700 rounded p-4 flex justify-between items-center\">
+                <div>
+                    <span class=\"font-medium ${pos.side === 'long' ? 'text-green-400' : 'text-red-400'}\">
+                        ${pos.side.toUpperCase()} ${pos.quantity?.toFixed(4) || 0} ETH
+                    </span>
+                    <p class=\"text-sm text-gray-400\">
+                        Entrée: $${pos.entry_price?.toFixed(2) || 0}
+                    </p>
+                </div>
+                <button onclick=\"app.closePosition(${pos.id})\" 
+                        class=\"px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm\">
+                    Fermer
+                </button>
+            </div>
+        `).join('');
+    }
+
+    renderPredictions(predictions) {
+        if (!predictions.length) {
+            return '<p class=\"text-gray-400 text-center py-8\">Aucune prédiction disponible</p>';
+        }
+
+        return predictions.map(pred => `
+            <div class=\"bg-gray-700 rounded p-4\">
+                <div class=\"flex justify-between items-start\">
+                    <div>
+                        <span class=\"font-medium\">Prix prédit: $${pred.predicted_price?.toFixed(2) || 0}</span>
+                        <p class=\"text-sm text-gray-400\">
+                            Retour: ${((pred.predicted_return || 0) * 100).toFixed(2)}% 
+                            | Confiance: ${((pred.confidence_score || 0) * 100).toFixed(1)}%
+                        </p>
+                        <p class=\"text-xs text-gray-500\">
+                            Horizon: ${pred.horizon_hours || 0}h | ${new Date(pred.timestamp).toLocaleString('fr-FR')}
+                        </p>
+                    </div>
+                    <div class=\"text-right\">
+                        <div class=\"w-12 h-2 bg-gray-600 rounded overflow-hidden\">
+                            <div class=\"h-full bg-purple-400\" 
+                                 style=\"width: ${((pred.confidence_score || 0) * 100)}%\"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderRecentTrades(trades) {
+        if (!trades.length) {
+            return '<p class=\"text-gray-400 text-center py-8\">Aucun trade récent</p>';
+        }
+
+        return trades.map(trade => `
+            <div class=\"bg-gray-700 rounded p-4\">
+                <div class=\"flex justify-between items-center\">
+                    <div>
+                        <span class=\"font-medium ${trade.net_pnl > 0 ? 'text-green-400' : 'text-red-400'}\">
+                            ${trade.side?.toUpperCase()} ${trade.quantity?.toFixed(4) || 0} ETH
+                        </span>
+                        <p class=\"text-sm text-gray-400\">
+                            ${trade.entry_price?.toFixed(2)} → ${trade.exit_price?.toFixed(2)}
+                        </p>
+                    </div>
+                    <div class=\"text-right\">
+                        <span class=\"font-medium ${trade.net_pnl > 0 ? 'text-green-400' : 'text-red-400'}\">
+                            ${trade.net_pnl > 0 ? '+' : ''}$${trade.net_pnl?.toFixed(2) || 0}
+                        </span>
+                        <p class=\"text-xs text-gray-500\">${trade.exit_reason}</p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderPerformanceMetrics(metrics) {
+        return `
+            <div class=\"grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6\">
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold text-blue-400\">${metrics.total_trades || 0}</p>
+                    <p class=\"text-sm text-gray-400\">Total Trades</p>
+                </div>
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold text-green-400\">${((metrics.win_rate || 0) * 100).toFixed(1)}%</p>
+                    <p class=\"text-sm text-gray-400\">Win Rate</p>
+                </div>
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold ${(metrics.net_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}\">
+                        $${(metrics.net_pnl || 0).toFixed(2)}
+                    </p>
+                    <p class=\"text-sm text-gray-400\">P&L Net</p>
+                </div>
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold text-yellow-400\">${(metrics.profit_factor || 0).toFixed(2)}</p>
+                    <p class=\"text-sm text-gray-400\">Profit Factor</p>
+                </div>
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold text-red-400\">${((metrics.max_drawdown || 0) * 100).toFixed(1)}%</p>
+                    <p class=\"text-sm text-gray-400\">Max DD</p>
+                </div>
+                <div class=\"text-center\">
+                    <p class=\"text-2xl font-bold text-purple-400\">${metrics.sharpe_ratio?.toFixed(2) || 'N/A'}</p>
+                    <p class=\"text-sm text-gray-400\">Sharpe</p>
+                </div>
+            </div>
+        `;
+    }
+
+    initPriceChart() {
+        const ctx = document.getElementById('priceChart');
+        if (!ctx) return;
+
+        this.priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Prix ETH (USD)',
+                    data: [],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#9ca3af' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                    },
+                    y: {
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+
+    async loadPriceHistory() {
+        try {
+            const response = await fetch(`${this.apiBase}/market/history?limit=24`);
+            const result = await response.json();
+            
+            if (result.success && this.priceChart) {
+                const labels = result.data.map(d => new Date(d.timestamp).toLocaleTimeString('fr-FR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                }));
+                const prices = result.data.map(d => d.close);
+                
+                this.priceChart.data.labels = labels;
+                this.priceChart.data.datasets[0].data = prices;
+                this.priceChart.update();
+            }
+        } catch (error) {
+            console.error('Erreur chargement historique prix:', error);
+        }
+    }
+
+    async generateSignal() {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        
+        try {
+            button.innerHTML = '<i class=\"fas fa-spinner fa-spin mr-2\"></i>Génération...';
+            button.disabled = true;
+            
+            const response = await fetch(`${this.apiBase}/trading/signal`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showNotification(\n                    `Signal généré: ${result.signal.action.toUpperCase()} ` +\n                    `(Confiance: ${(result.signal.confidence * 100).toFixed(1)}%)`,\n                    'success'\n                );\n                \n                // Actualiser le dashboard\n                setTimeout(() => this.refreshData(), 1000);\n            } else {\n                throw new Error(result.error);\n            }\n        } catch (error) {\n            this.showNotification(`Erreur: ${error.message}`, 'error');\n        } finally {\n            button.innerHTML = originalText;\n            button.disabled = false;\n        }\n    }\n\n    async closePosition(tradeId) {\n        if (!confirm('Êtes-vous sûr de vouloir fermer cette position ?')) {\n            return;\n        }\n        \n        try {\n            const response = await fetch(`${this.apiBase}/trading/positions/${tradeId}/close`, {\n                method: 'POST',\n                headers: { 'Content-Type': 'application/json' }\n            });\n            \n            const result = await response.json();\n            \n            if (result.success) {\n                this.showNotification(\n                    `Position fermée - P&L: $${result.trade.net_pnl?.toFixed(2) || 0}`,\n                    result.trade.net_pnl >= 0 ? 'success' : 'error'\n                );\n                \n                // Actualiser le dashboard\n                setTimeout(() => this.refreshData(), 1000);\n            } else {\n                throw new Error(result.error);\n            }\n        } catch (error) {\n            this.showNotification(`Erreur fermeture: ${error.message}`, 'error');\n        }\n    }\n\n    async refreshData() {\n        console.log('🔄 Actualisation des données...');\n        \n        try {\n            const response = await fetch(`${this.apiBase}/dashboard`);\n            const result = await response.json();\n            \n            if (result.success) {\n                this.renderDashboard(result.dashboard);\n                console.log('✅ Données actualisées');\n            }\n        } catch (error) {\n            console.error('❌ Erreur actualisation:', error);\n        }\n    }\n\n    toggleAutoRefresh() {\n        this.isAutoRefreshEnabled = !this.isAutoRefreshEnabled;\n        \n        const btn = document.getElementById('autoRefreshBtn');\n        if (btn) {\n            btn.innerHTML = this.isAutoRefreshEnabled \n                ? '<i class=\"fas fa-pause mr-2\"></i>Auto-Refresh: ON'\n                : '<i class=\"fas fa-play mr-2\"></i>Auto-Refresh: OFF';\n            \n            btn.className = btn.className.replace(\n                this.isAutoRefreshEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700',\n                this.isAutoRefreshEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'\n            );\n        }\n        \n        this.showNotification(\n            `Auto-refresh ${this.isAutoRefreshEnabled ? 'activé' : 'désactivé'}`,\n            'info'\n        );\n    }\n\n    setupAutoRefresh() {\n        setInterval(() => {\n            if (this.isAutoRefreshEnabled) {\n                this.refreshData();\n            }\n        }, this.refreshInterval);\n        \n        console.log(`🔄 Auto-refresh configuré (${this.refreshInterval / 1000}s)`);\n    }\n\n    setupEventListeners() {\n        // Raccourcis clavier\n        document.addEventListener('keydown', (e) => {\n            if (e.ctrlKey || e.metaKey) {\n                switch (e.key) {\n                    case 'r':\n                        e.preventDefault();\n                        this.refreshData();\n                        break;\n                    case 's':\n                        e.preventDefault();\n                        this.generateSignal();\n                        break;\n                }\n            }\n        });\n        \n        // Actualisation au focus de la page\n        document.addEventListener('visibilitychange', () => {\n            if (!document.hidden) {\n                this.refreshData();\n            }\n        });\n    }\n\n    showNotification(message, type = 'info') {\n        const notification = document.createElement('div');\n        \n        const colors = {\n            success: 'bg-green-600',\n            error: 'bg-red-600',\n            info: 'bg-blue-600',\n            warning: 'bg-yellow-600'\n        };\n        \n        notification.className = `\n            fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50\n            transform translate-x-full transition-transform duration-300\n        `;\n        \n        notification.textContent = message;\n        document.body.appendChild(notification);\n        \n        // Animation d'entrée\n        setTimeout(() => {\n            notification.style.transform = 'translateX(0)';\n        }, 100);\n        \n        // Suppression automatique\n        setTimeout(() => {\n            notification.style.transform = 'translateX(100%)';\n            setTimeout(() => {\n                if (notification.parentNode) {\n                    notification.parentNode.removeChild(notification);\n                }\n            }, 300);\n        }, 4000);\n    }\n\n    showError(message) {\n        this.showNotification(message, 'error');\n    }\n}\n\n// Initialisation de l'application\nconst app = new ETHTraderApp();\n\n// Exposition globale pour les event handlers inline\nwindow.app = app;\n\nconsole.log('🚀 ETH Trader Frontend chargé');"
