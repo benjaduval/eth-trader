@@ -28,11 +28,26 @@ export class TimesFMPredictor {
     horizonHours: number = 24,
     currentPrice: number
   ): Promise<TimesFMPrediction> {
+    const startTime = Date.now();
+    
     try {
+      // Log début de prédiction
+      await this.logTimesFMCall('Starting TimesFM prediction', {
+        symbol,
+        horizonHours,
+        currentPrice,
+        timestamp: new Date().toISOString()
+      });
+
       // Récupérer les données historiques récentes
       const historicalData = await this.getHistoricalData(symbol, 168); // 7 jours
       
       if (historicalData.length < 20) {
+        await this.logTimesFMCall('Insufficient historical data', {
+          dataPoints: historicalData.length,
+          required: 20,
+          fallback: 'neutral_prediction'
+        });
         // Pas assez de données, retourner une prédiction neutre
         return this.createNeutralPrediction(symbol, currentPrice, horizonHours);
       }
@@ -52,11 +67,30 @@ export class TimesFMPredictor {
         trendAnalysis
       );
 
+      // Log prédiction générée
+      const executionTime = Date.now() - startTime;
+      await this.logTimesFMCall('TimesFM prediction completed', {
+        predicted_price: prediction.predicted_price,
+        predicted_return: prediction.predicted_return,
+        confidence_score: prediction.confidence_score,
+        execution_time_ms: executionTime,
+        indicators_used: Object.keys(indicators).length,
+        trend_direction: trendAnalysis.direction,
+        trend_strength: trendAnalysis.strength
+      });
+
       // Sauvegarder en base
       await this.savePrediction(prediction);
       
       return prediction;
     } catch (error) {
+      const executionTime = Date.now() - startTime;
+      await this.logTimesFMCall('TimesFM prediction error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        execution_time_ms: executionTime,
+        fallback: 'neutral_prediction'
+      });
+      
       console.error('Error in TimesFM prediction:', error);
       return this.createNeutralPrediction(symbol, currentPrice, horizonHours);
     }
@@ -368,6 +402,25 @@ export class TimesFMPredictor {
     } catch (error) {
       console.error('Error getting latest predictions:', error);
       return [];
+    }
+  }
+
+  private async logTimesFMCall(message: string, contextData: any): Promise<void> {
+    try {
+      await this.db.prepare(`
+        INSERT INTO system_logs 
+        (level, component, message, context_data, execution_time_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        'INFO',
+        'timesfm',
+        message,
+        JSON.stringify(contextData),
+        contextData.execution_time_ms || null,
+        new Date().toISOString()
+      ).run();
+    } catch (error) {
+      console.error('Error logging TimesFM call:', error);
     }
   }
 }

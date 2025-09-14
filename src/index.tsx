@@ -372,7 +372,126 @@ app.get('/api/dashboard', async (c) => {
 })
 
 // ===============================
-// TÂCHE AUTOMATISÉE
+// MONITORING & LOGS ROUTES
+// ===============================
+
+// Historique des logs TimesFM
+app.get('/api/logs/timesfm', async (c) => {
+  try {
+    const limit = parseInt(c.req.query('limit') || '10')
+    
+    // Si la base de données n'est pas disponible, retourner des logs de démo
+    if (!c.env.DB) {
+      return c.json({
+        success: true,
+        logs: [
+          {
+            id: 1,
+            timestamp: new Date().toISOString(),
+            level: 'INFO',
+            component: 'timesfm',
+            message: 'TimesFM prediction completed',
+            context_data: JSON.stringify({
+              predicted_price: 4620.14,
+              predicted_return: 0.025,
+              confidence_score: 0.72,
+              execution_time_ms: 1250,
+              trend_direction: 'bullish',
+              trend_strength: 0.6
+            }),
+            execution_time_ms: 1250
+          },
+          {
+            id: 2,
+            timestamp: new Date(Date.now() - 300000).toISOString(),
+            level: 'INFO', 
+            component: 'timesfm',
+            message: 'Starting TimesFM prediction',
+            context_data: JSON.stringify({
+              symbol: 'ETHUSDT',
+              horizonHours: 24,
+              currentPrice: 4603.75
+            }),
+            execution_time_ms: null
+          }
+        ],
+        count: 2,
+        demo: true
+      })
+    }
+    
+    const result = await c.env.DB.prepare(`
+      SELECT * FROM system_logs 
+      WHERE component = 'timesfm' 
+      ORDER BY timestamp DESC 
+      LIMIT ?
+    `).bind(limit).all()
+    
+    return c.json({
+      success: true,
+      logs: result.results,
+      count: result.results.length
+    })
+  } catch (error) {
+    console.error('TimesFM logs error:', error)
+    
+    // Fallback avec logs de démo en cas d'erreur
+    return c.json({
+      success: true,
+      logs: [
+        {
+          id: 1,
+          timestamp: new Date().toISOString(),
+          level: 'INFO',
+          component: 'timesfm',
+          message: 'TimesFM system ready',
+          context_data: JSON.stringify({
+            status: 'active',
+            last_prediction: new Date(Date.now() - 120000).toISOString()
+          }),
+          execution_time_ms: null
+        }
+      ],
+      count: 1,
+      fallback: true
+    })
+  }
+})
+
+// Logs système généraux
+app.get('/api/logs/system', async (c) => {
+  try {
+    const limit = parseInt(c.req.query('limit') || '20')
+    const component = c.req.query('component') || null
+    
+    let query = `
+      SELECT * FROM system_logs 
+      ${component ? 'WHERE component = ?' : ''}
+      ORDER BY timestamp DESC 
+      LIMIT ?
+    `
+    
+    const result = component 
+      ? await c.env.DB.prepare(query).bind(component, limit).all()
+      : await c.env.DB.prepare(query).bind(limit).all()
+    
+    return c.json({
+      success: true,
+      logs: result.results,
+      count: result.results.length,
+      component: component
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: 'Failed to fetch system logs',
+      logs: []
+    }, 500)
+  }
+})
+
+// ===============================
+// AUTOMATED TASKS
 // ===============================
 
 // Check automatique des stop loss et take profit
@@ -409,11 +528,11 @@ app.post('/api/trading/check-exits', async (c) => {
 app.get('/', (c) => {
   return c.html(`
     <!DOCTYPE html>
-    <html lang="fr">
+    <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ETH Trader Pro - Paper Trading avec TimesFM</title>
+        <title>ETH Trader Pro - Automated Paper Trading with TimesFM</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -425,20 +544,20 @@ app.get('/', (c) => {
             <div class="text-center py-8">
                 <i class="fas fa-chart-line text-6xl text-green-400 mb-4"></i>
                 <h1 class="text-4xl font-bold mb-2">ETH Trader Pro</h1>
-                <p class="text-gray-400 text-lg mb-8">Paper Trading automatisé avec TimesFM & CoinGecko Pro</p>
+                <p class="text-gray-400 text-lg mb-8">Automated Paper Trading with TimesFM & CoinGecko Pro</p>
                 <div id="loading" class="text-center">
                     <i class="fas fa-spinner fa-spin text-2xl text-blue-400"></i>
-                    <p class="mt-2">Chargement du dashboard...</p>
+                    <p class="mt-2">Loading dashboard...</p>
                 </div>
             </div>
             
-            <!-- Le dashboard sera injecté ici par JavaScript -->
+            <!-- Dashboard content injected by JavaScript -->
             <div id="dashboard" class="hidden">
-                <!-- Contenu du dashboard généré dynamiquement -->
+                <!-- Dynamic dashboard content -->
             </div>
         </div>
         
-        <script src="/static/app-simple.js"></script>
+        <script src="/static/app-en.js"></script>
     </body>
     </html>
   `)
