@@ -521,6 +521,291 @@ app.post('/api/trading/check-exits', async (c) => {
   }
 })
 
+// Récupération de vraies données historiques CoinGecko Pro (AUCUNE SIMULATION)
+app.post('/api/admin/fetch-real-historical-data', async (c) => {
+  try {
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const hoursParam = parseInt(c.req.query('hours') || '72') // Par défaut 72h (3 jours)
+    
+    console.log(`🔄 Fetching REAL historical data for last ${hoursParam} hours...`)
+    
+    // Récupérer les vraies données historiques CoinGecko Pro
+    const realHistoricalData = await coinGecko.getLatestRealData(hoursParam)
+    
+    if (!realHistoricalData || realHistoricalData.length === 0) {
+      throw new Error('No real historical data available from CoinGecko')
+    }
+    
+    let insertedCount = 0
+    let updatedCount = 0
+    
+    // Insérer/mettre à jour chaque point de données réelles
+    for (const dataPoint of realHistoricalData) {
+      try {
+        const result = await c.env.DB.prepare(`
+          INSERT OR REPLACE INTO market_data 
+          (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap, created_at)
+          VALUES (?, 'ETHUSDT', '1h', ?, ?, ?, ?, ?, NULL, CURRENT_TIMESTAMP)
+        `).bind(
+          dataPoint.timestamp,
+          dataPoint.open,
+          dataPoint.high,
+          dataPoint.low,
+          dataPoint.close,
+          dataPoint.volume
+        ).run()
+        
+        if (result.success) {
+          if (result.meta.changes > 0) {
+            insertedCount++
+          } else {
+            updatedCount++
+          }
+        }
+      } catch (dbError) {
+        console.warn('Failed to insert real data point:', dbError)
+      }
+    }
+    
+    // Log dans la base pour traçabilité
+    await c.env.DB.prepare(`
+      INSERT INTO system_logs (timestamp, level, component, message, context_data, execution_time_ms)
+      VALUES (CURRENT_TIMESTAMP, 'INFO', 'coingecko', 'Real historical data fetched', ?, ?)
+    `).bind(
+      JSON.stringify({
+        hours_requested: hoursParam,
+        data_points_received: realHistoricalData.length,
+        inserted: insertedCount,
+        updated: updatedCount,
+        data_range: {
+          from: realHistoricalData[0]?.timestamp,
+          to: realHistoricalData[realHistoricalData.length - 1]?.timestamp
+        }
+      }),
+      null
+    ).run()
+    
+    console.log(`✅ Successfully processed ${realHistoricalData.length} REAL data points`)
+    
+    return c.json({
+      success: true,
+      message: `Successfully processed ${realHistoricalData.length} REAL historical data points`,
+      data_points_fetched: realHistoricalData.length,
+      inserted_count: insertedCount,
+      updated_count: updatedCount,
+      hours_covered: hoursParam,
+      data_source: 'CoinGecko Pro API',
+      data_range: {
+        from: realHistoricalData[0]?.timestamp,
+        to: realHistoricalData[realHistoricalData.length - 1]?.timestamp
+      }
+    })
+    
+  } catch (error) {
+    console.error('❌ Real historical data fetch failed:', error)
+    await c.env.DB.prepare(`
+      INSERT INTO system_logs (timestamp, level, component, message, context_data)
+      VALUES (CURRENT_TIMESTAMP, 'ERROR', 'coingecko', 'Real historical data fetch failed', ?)
+    `).bind(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })
+    ).run().catch(() => {})
+    
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch real historical data',
+      data_source: 'CoinGecko Pro API'
+    }, 500)
+  }
+})
+
+// ===============================
+// AUTOMATION ENDPOINTS (pour cron/UptimeRobot)
+// ===============================
+
+// Endpoint principal d'automatisation - appelé périodiquement
+app.post('/api/automation/run-full-cycle', async (c) => {
+  try {
+    const startTime = Date.now()
+    const results = {
+      data_update: null as any,
+      prediction: null as any,
+      trading_signal: null as any,
+      errors: [] as string[]
+    }
+    
+    console.log('🤖 Starting automated full cycle...')
+    
+    // 1. Mise à jour des données de marché (dernières 72h)
+    try {
+      const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+      const historicalData = await coinGecko.getLatestRealData(72)
+      
+      let insertedCount = 0
+      for (const dataPoint of historicalData) {
+        try {
+          await c.env.DB.prepare(`
+            INSERT OR REPLACE INTO market_data 
+            (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume)
+            VALUES (?, 'ETHUSDT', '1h', ?, ?, ?, ?, ?)
+          `).bind(
+            dataPoint.timestamp, dataPoint.open, dataPoint.high, 
+            dataPoint.low, dataPoint.close, dataPoint.volume
+          ).run()
+          insertedCount++
+        } catch (e) {}
+      }
+      
+      results.data_update = { 
+        success: true, 
+        points_processed: insertedCount,
+        hours_covered: 72
+      }
+      console.log(`✅ Data update: ${insertedCount} points processed`)
+      
+    } catch (error) {
+      const errorMsg = `Data update failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      results.errors.push(errorMsg)
+      console.error('❌ Data update error:', error)
+    }
+    
+    // 2. Génération automatique de prédiction TimesFM
+    try {
+      const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+      const currentPrice = await coinGecko.getCurrentETHPrice()
+      
+      if (currentPrice) {
+        const predictor = new TimesFMPredictor(c.env.DB)
+        const prediction = await predictor.predictNextHours('ETHUSDT', 24, currentPrice)
+        
+        results.prediction = {
+          success: true,
+          predicted_price: prediction.predicted_price,
+          confidence: prediction.confidence_score,
+          predicted_return: prediction.predicted_return
+        }
+        console.log(`✅ Prediction: ${prediction.predicted_price} (${(prediction.predicted_return * 100).toFixed(2)}%)`)
+      }
+    } catch (error) {
+      const errorMsg = `Prediction failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      results.errors.push(errorMsg)
+      console.error('❌ Prediction error:', error)
+    }
+    
+    // 3. Génération automatique de signal de trading (si prédiction réussie)
+    try {
+      if (results.prediction?.success) {
+        const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+        const signal = await tradingEngine.generateSignal('ETHUSDT')
+        
+        results.trading_signal = {
+          success: true,
+          action: signal.action,
+          confidence: signal.confidence,
+          price: signal.price
+        }
+        console.log(`✅ Trading signal: ${signal.action} at ${signal.price}`)
+      }
+    } catch (error) {
+      const errorMsg = `Trading signal failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      results.errors.push(errorMsg)
+      console.error('❌ Trading signal error:', error)
+    }
+    
+    const executionTime = Date.now() - startTime
+    
+    // Log du cycle complet
+    await c.env.DB.prepare(`
+      INSERT INTO system_logs (timestamp, level, component, message, context_data, execution_time_ms)
+      VALUES (CURRENT_TIMESTAMP, 'INFO', 'automation', 'Full automation cycle completed', ?, ?)
+    `).bind(
+      JSON.stringify(results),
+      executionTime
+    ).run().catch(() => {})
+    
+    console.log(`🤖 Automation cycle completed in ${executionTime}ms`)
+    
+    return c.json({
+      success: true,
+      message: `Automation cycle completed in ${executionTime}ms`,
+      execution_time_ms: executionTime,
+      results,
+      timestamp: new Date().toISOString(),
+      errors_count: results.errors.length
+    })
+    
+  } catch (error) {
+    console.error('❌ Automation cycle failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Automation cycle failed',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Endpoint léger pour maintenir l'application active (UptimeRobot)
+app.get('/api/automation/heartbeat', async (c) => {
+  try {
+    // Simple vérification de santé avec timestamp
+    const health = {
+      status: 'alive',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime ? Math.floor(process.uptime()) : null,
+      database: !!c.env.DB,
+      coingecko_api: !!c.env.COINGECKO_API_KEY
+    }
+    
+    return c.json(health)
+  } catch (error) {
+    return c.json({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Endpoint pour mise à jour manuelle des données seulement
+app.post('/api/automation/update-data-only', async (c) => {
+  try {
+    const hoursParam = parseInt(c.req.query('hours') || '24')
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    
+    console.log(`📊 Manual data update for last ${hoursParam} hours...`)
+    
+    const historicalData = await coinGecko.getLatestRealData(hoursParam)
+    let processedCount = 0
+    
+    for (const dataPoint of historicalData) {
+      try {
+        await c.env.DB.prepare(`
+          INSERT OR REPLACE INTO market_data 
+          (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume)
+          VALUES (?, 'ETHUSDT', '1h', ?, ?, ?, ?, ?)
+        `).bind(
+          dataPoint.timestamp, dataPoint.open, dataPoint.high,
+          dataPoint.low, dataPoint.close, dataPoint.volume
+        ).run()
+        processedCount++
+      } catch (e) {}
+    }
+    
+    return c.json({
+      success: true,
+      message: `Data updated: ${processedCount} points processed`,
+      points_processed: processedCount,
+      hours_covered: hoursParam,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    return c.json({
+      success: false, 
+      error: error instanceof Error ? error.message : 'Data update failed'
+    }, 500)
+  }
+})
+
 // Collecte automatique des données de marché et génération de prédictions
 app.post('/api/admin/update-market-data', async (c) => {
   try {

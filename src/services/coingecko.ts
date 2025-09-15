@@ -247,4 +247,105 @@ export class CoinGeckoService {
       return null;
     }
   }
+
+  // Méthode avancée pour récupérer des données historiques réelles avec prix et volume
+  async getRealHistoricalData(days: number = 7): Promise<Array<{
+    timestamp: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>> {
+    try {
+      console.log(`🔄 Fetching REAL ${days} days of historical market data from CoinGecko Pro...`);
+      
+      // 1. Récupérer les données OHLC (prix)
+      const ohlcData = await this.getETHOHLCV(days);
+      
+      if (!ohlcData || ohlcData.length === 0) {
+        throw new Error('No OHLC data received');
+      }
+
+      // 2. Récupérer les données de volume séparément avec market_chart
+      let volumeData: number[][] = [];
+      try {
+        const marketChart = await this.makeRequest('coins/ethereum/market_chart', {
+          vs_currency: 'usd',
+          days: days,
+          interval: days > 1 ? 'hourly' : 'minutely'
+        });
+        
+        volumeData = marketChart.total_volumes || [];
+        console.log(`📊 Retrieved ${volumeData.length} volume data points`);
+      } catch (volumeError) {
+        console.warn('Could not fetch volume data, using zero values');
+      }
+
+      // 3. Combiner OHLC avec volume data
+      const formattedData = ohlcData.map((candle: number[], index: number) => {
+        // Trouver le volume correspondant basé sur timestamp
+        const candleTime = candle[0];
+        let volume = 0;
+        
+        if (volumeData.length > 0) {
+          // Chercher le volume le plus proche temporellement
+          const volumeEntry = volumeData.find(([timestamp, vol]) => 
+            Math.abs(timestamp - candleTime) < 3600000 // ±1 heure de tolérance
+          );
+          volume = volumeEntry ? volumeEntry[1] : 0;
+        }
+
+        return {
+          timestamp: new Date(candleTime).toISOString(),
+          open: Math.round(candle[1] * 100) / 100,
+          high: Math.round(candle[2] * 100) / 100,
+          low: Math.round(candle[3] * 100) / 100,
+          close: Math.round(candle[4] * 100) / 100,
+          volume: Math.round(volume * 100) / 100
+        };
+      });
+
+      // 4. Trier par timestamp croissant et prendre les plus récents
+      formattedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      console.log(`✅ Successfully formatted ${formattedData.length} real historical data points`);
+      console.log(`📅 Data range: ${formattedData[0]?.timestamp} to ${formattedData[formattedData.length - 1]?.timestamp}`);
+      
+      return formattedData;
+      
+    } catch (error) {
+      console.error('❌ Real historical data fetch failed:', error);
+      throw new Error(`Real historical data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Méthode pour récupérer uniquement les dernières données (dernières heures)
+  async getLatestRealData(hours: number = 72): Promise<Array<{
+    timestamp: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>> {
+    try {
+      // Récupérer plusieurs jours pour avoir assez de données récentes
+      const days = Math.max(1, Math.ceil(hours / 24));
+      const allData = await this.getRealHistoricalData(days);
+      
+      // Filtrer pour garder seulement les dernières heures
+      const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
+      const recentData = allData.filter(candle => 
+        new Date(candle.timestamp).getTime() >= cutoffTime
+      );
+      
+      console.log(`🕒 Filtered to ${recentData.length} data points from last ${hours} hours`);
+      return recentData;
+      
+    } catch (error) {
+      console.error('Failed to get latest real data:', error);
+      throw error;
+    }
+  }
 }
