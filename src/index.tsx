@@ -521,6 +521,136 @@ app.post('/api/trading/check-exits', async (c) => {
   }
 })
 
+// Collecte automatique des données de marché et génération de prédictions
+app.post('/api/admin/update-market-data', async (c) => {
+  try {
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const timesFM = new TimesFMPredictor(c.env.DB)
+    
+    // 1. Collecter les données de marché actuelles
+    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const marketData = await coinGecko.getEnhancedMarketData()
+    
+    if (!currentPrice || !marketData) {
+      throw new Error('Failed to fetch market data from CoinGecko')
+    }
+    
+    // 2. Sauvegarder les données de marché dans la base
+    await c.env.DB.prepare(`
+      INSERT OR REPLACE INTO market_data 
+      (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      'ETHUSDT',
+      '1h',
+      marketData.open_24h || currentPrice,
+      marketData.high_24h || currentPrice,
+      marketData.low_24h || currentPrice,
+      currentPrice,
+      marketData.volume_24h || 0,
+      marketData.market_cap || 0
+    ).run()
+    
+    // 3. Générer une nouvelle prédiction TimesFM
+    const prediction = await timesFM.predictNextHours('ETHUSDT', 24, currentPrice)
+    
+    // 4. Sauvegarder la prédiction
+    await c.env.DB.prepare(`
+      INSERT INTO predictions 
+      (timestamp, symbol, horizon_hours, predicted_price, predicted_return, confidence_score, quantile_10, quantile_90)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      prediction.symbol,
+      prediction.horizon_hours,
+      prediction.predicted_price,
+      prediction.predicted_return,
+      prediction.confidence_score,
+      prediction.quantile_10,
+      prediction.quantile_90
+    ).run()
+    
+    return c.json({
+      success: true,
+      message: 'Market data and prediction updated successfully',
+      current_price: currentPrice,
+      prediction: prediction,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Market data update error:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Market data update failed'
+    }, 500)
+  }
+})
+
+// Tâche complète d'automatisation (données + signal + trading)
+app.post('/api/admin/run-automation', async (c) => {
+  try {
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const timesFM = new TimesFMPredictor(c.env.DB)
+    const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+    
+    // 1. Mettre à jour les données de marché
+    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const marketData = await coinGecko.getEnhancedMarketData()
+    
+    if (!currentPrice) {
+      throw new Error('Could not fetch current ETH price')
+    }
+    
+    // 2. Sauvegarder les données de marché
+    await c.env.DB.prepare(`
+      INSERT OR REPLACE INTO market_data 
+      (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      'ETHUSDT',
+      '1h',
+      marketData.open_24h || currentPrice,
+      marketData.high_24h || currentPrice,
+      marketData.low_24h || currentPrice,
+      currentPrice,
+      marketData.volume_24h || 0,
+      marketData.market_cap || 0
+    ).run()
+    
+    // 3. Générer une prédiction TimesFM
+    const prediction = await timesFM.predictNextHours('ETHUSDT', 24, currentPrice)
+    
+    // 4. Générer et potentiellement exécuter un signal de trading
+    const signal = await tradingEngine.generateSignal(prediction, currentPrice)
+    
+    let trade = null
+    if (signal.action !== 'hold') {
+      trade = await tradingEngine.executePaperTrade(signal)
+    }
+    
+    // 5. Vérifier les positions ouvertes (stop loss/take profit)
+    await tradingEngine.checkStopLossAndTakeProfit(currentPrice)
+    
+    return c.json({
+      success: true,
+      message: 'Full automation cycle completed',
+      current_price: currentPrice,
+      prediction: prediction,
+      signal: signal,
+      trade: trade,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Automation error:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Automation cycle failed'
+    }, 500)
+  }
+})
+
 // ===============================
 // PAGE PRINCIPALE
 // ===============================

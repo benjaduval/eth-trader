@@ -7,7 +7,9 @@ class ETHTraderApp {
     constructor() {
         this.apiBase = '/api';
         this.refreshInterval = 30000; // 30 seconds
+        this.automationInterval = 300000; // 5 minutes for automation
         this.isAutoRefreshEnabled = true;
+        this.isAutomationEnabled = true;
         
         this.init();
     }
@@ -19,8 +21,9 @@ class ETHTraderApp {
             await this.checkHealth();
             await this.loadDashboard();
             this.setupAutoRefresh();
+            this.setupAutomation();
             
-            console.log('✅ Dashboard initialized successfully');
+            console.log('✅ Dashboard initialized successfully with automation enabled');
         } catch (error) {
             console.error('❌ Initialization error:', error);
             this.showError('Server connection error');
@@ -113,6 +116,12 @@ class ETHTraderApp {
                         </button>
                         <button onclick="app.refreshTimesFMLogs()" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition-colors">
                             <i class="fas fa-brain mr-2"></i>Refresh AI Logs
+                        </button>
+                        <button onclick="app.toggleAutomation()" class="px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg font-medium transition-colors" id="automationBtn">
+                            <i class="fas fa-robot mr-2"></i>Automation: ON
+                        </button>
+                        <button onclick="app.runManualAutomation()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors">
+                            <i class="fas fa-play mr-2"></i>Run Now
                         </button>
                     </div>
                 </div>
@@ -507,6 +516,88 @@ class ETHTraderApp {
         }, this.refreshInterval);
         
         console.log('🔄 Auto-refresh configured (' + (this.refreshInterval / 1000) + 's)');
+    }
+
+    setupAutomation() {
+        // Run automation cycle every 5 minutes
+        setInterval(() => {
+            if (this.isAutomationEnabled) {
+                this.runAutomationCycle();
+            }
+        }, this.automationInterval);
+        
+        console.log('🤖 Automation configured (' + (this.automationInterval / 1000 / 60) + ' minutes)');
+        
+        // Run initial automation after 30 seconds
+        setTimeout(() => {
+            if (this.isAutomationEnabled) {
+                this.runAutomationCycle();
+            }
+        }, 30000);
+    }
+
+    async runAutomationCycle() {
+        try {
+            console.log('🤖 Running automation cycle...');
+            
+            const response = await fetch(`${this.apiBase}/admin/run-automation`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ Automation completed:', result.message);
+                
+                // Show notification for new trades or significant changes
+                if (result.trade) {
+                    this.showNotification(
+                        `New ${result.trade.side.toUpperCase()} trade: ${result.trade.quantity.toFixed(4)} ETH @ $${result.trade.entry_price}`,
+                        'success'
+                    );
+                }
+                
+                // Refresh dashboard after automation
+                await this.loadDashboard();
+            } else {
+                console.warn('⚠️ Automation failed:', result.error);
+            }
+        } catch (error) {
+            console.error('❌ Automation cycle error:', error);
+            // Don't show error notifications for automation failures to avoid spam
+        }
+    }
+
+    toggleAutomation() {
+        this.isAutomationEnabled = !this.isAutomationEnabled;
+        
+        const btn = document.getElementById('automationBtn');
+        if (btn) {
+            btn.innerHTML = this.isAutomationEnabled 
+                ? '<i class="fas fa-robot mr-2"></i>Automation: ON'
+                : '<i class="fas fa-stop mr-2"></i>Automation: OFF';
+            
+            btn.className = btn.className.replace(
+                this.isAutomationEnabled ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-600 hover:bg-orange-700',
+                this.isAutomationEnabled ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'
+            );
+        }
+        
+        this.showNotification(
+            'Automation ' + (this.isAutomationEnabled ? 'enabled' : 'disabled'),
+            this.isAutomationEnabled ? 'success' : 'warning'
+        );
+        
+        console.log(`🤖 Automation ${this.isAutomationEnabled ? 'enabled' : 'disabled'}`);
+    }
+
+    async runManualAutomation() {
+        this.showNotification('Running automation cycle...', 'info');
+        await this.runAutomationCycle();
     }
 
     showNotification(message, type) {
