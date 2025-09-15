@@ -31,10 +31,32 @@ export class PaperTradingEngine {
     };
   }
 
-  async generateSignal(prediction: TimesFMPrediction, currentPrice: number): Promise<TradingSignal> {
+  async generateSignal(symbol: string = 'ETHUSDT'): Promise<TradingSignal> {
     try {
-      const predictedReturn = prediction.predicted_return;
-      const confidence = prediction.confidence_score;
+      // Récupérer la dernière prédiction depuis la base
+      const lastPrediction = await this.db.prepare(`
+        SELECT * FROM predictions 
+        WHERE symbol = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `).bind(symbol).first() as any;
+
+      if (!lastPrediction) {
+        throw new Error('No recent prediction available');
+      }
+
+      // Récupérer le prix actuel depuis la base aussi
+      const latestMarketData = await this.db.prepare(`
+        SELECT close_price FROM market_data 
+        WHERE symbol = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `).bind(symbol).first() as any;
+
+      const currentPrice = latestMarketData?.close_price || lastPrediction.predicted_price;
+      
+      const predictedReturn = lastPrediction.predicted_return;
+      const confidence = lastPrediction.confidence_score;
       
       // Logique de génération de signal
       let action: 'buy' | 'sell' | 'hold' = 'hold';
@@ -393,6 +415,201 @@ export class PaperTradingEngine {
     } catch (error) {
       console.error('Error getting recent trades:', error);
       return [];
+    }
+  }
+
+  // ===============================
+  // NOUVELLES MÉTHODES - FERMETURE INTELLIGENTE
+  // ===============================
+
+  /**
+   * Calcule la probabilité qu'une position atteigne son take-profit
+   * basée sur la prédiction TimesFM et la distance au target
+   */
+  calculateProfitProbability(position: any, prediction: TimesFMPrediction, currentPrice: number): number {
+    try {
+      const { side, entry_price, take_profit_price } = position;
+      
+      if (!take_profit_price) return 0.5; // Si pas de TP défini, neutralité
+      
+      // Distance à parcourir pour atteindre le TP (en %)
+      const distanceToTP = side === 'long' 
+        ? (take_profit_price - currentPrice) / currentPrice
+        : (currentPrice - take_profit_price) / currentPrice;
+      
+      // Prédiction alignée avec la direction de la position
+      const alignedReturn = side === 'long' 
+        ? prediction.predicted_return 
+        : -prediction.predicted_return;
+      
+      // Facteurs influençant la probabilité
+      const confidenceFactor = prediction.confidence_score; // 0-1
+      const returnFactor = alignedReturn > 0 ? Math.min(alignedReturn / distanceToTP, 2) : 0; // Max 2x boost
+      const timeFactor = 0.8; // Décote pour l'incertitude temporelle
+      
+      // Calcul probabilité composite
+      let probability = (confidenceFactor * 0.5) + (returnFactor * 0.3) + (timeFactor * 0.2);
+      probability = Math.max(0, Math.min(1, probability)); // Clamp entre 0-1
+      
+      return probability;
+    } catch (error) {
+      console.warn('Error calculating profit probability:', error);
+      return 0.5; // Valeur neutre en cas d'erreur
+    }
+  }
+
+  /**
+   * Évalue si une position doit être fermée selon les critères intelligents
+   */
+  shouldClosePosition(position: any, prediction: TimesFMPrediction, currentPrice: number): {
+    shouldClose: boolean;
+    reasons: string[];
+  } {
+    const reasons: string[] = [];
+    
+    try {
+      // 1. Vérifications classiques (stop-loss/take-profit)
+      if (position.stop_loss_price) {
+        const hitStopLoss = (position.side === 'long' && currentPrice <= position.stop_loss_price) ||
+                           (position.side === 'short' && currentPrice >= position.stop_loss_price);
+        if (hitStopLoss) reasons.push('stop_loss');
+      }
+      
+      if (position.take_profit_price) {
+        const hitTakeProfit = (position.side === 'long' && currentPrice >= position.take_profit_price) ||
+                             (position.side === 'short' && currentPrice <= position.take_profit_price);
+        if (hitTakeProfit) reasons.push('take_profit');
+      }
+      
+      // 2. NOUVEAU: Confiance TimesFM trop faible
+      if (prediction.confidence_score < 0.4) {
+        reasons.push('low_confidence');
+      }
+      
+      // 3. NOUVEAU: Probabilité de profit trop faible
+      const profitProb = this.calculateProfitProbability(position, prediction, currentPrice);
+      if (profitProb < 0.4) {
+        reasons.push('low_profit_probability');
+      }
+      
+      // 4. NOUVEAU: Prédiction défavorable forte
+      const positionDirection = position.side === 'long' ? 1 : -1;
+      const expectedReturn = prediction.predicted_return * positionDirection;
+      if (expectedReturn < -0.015) { // -1.5% contre la position
+        reasons.push('negative_outlook');
+      }
+      
+      // 5. NOUVEAU: Signal opposé (basé sur nouvelle prédiction)
+      const newSignal = this.evaluateSignalFromPrediction(prediction);
+      const oppositeSignal = (position.side === 'long' && newSignal === 'sell') ||
+                            (position.side === 'short' && newSignal === 'buy');
+      if (oppositeSignal) {
+        reasons.push('opposite_signal');
+      }
+      
+      return {
+        shouldClose: reasons.length > 0,
+        reasons
+      };
+      
+    } catch (error) {
+      console.error('Error evaluating position closure:', error);
+      return { shouldClose: false, reasons: ['evaluation_error'] };
+    }
+  }
+
+  /**
+   * Évalue le signal de trading basé sur une prédiction (sans ouvrir de position)
+   */
+  private evaluateSignalFromPrediction(prediction: TimesFMPrediction): 'buy' | 'sell' | 'hold' {
+    const { predicted_return, confidence_score } = prediction;
+    const minConfidence = 0.6;
+    const minReturnThreshold = 0.02; // 2%
+    
+    if (confidence_score >= minConfidence) {
+      if (predicted_return > minReturnThreshold) return 'buy';
+      if (predicted_return < -minReturnThreshold) return 'sell';
+    }
+    
+    return 'hold';
+  }
+
+  /**
+   * Vérifie et ferme les positions selon les critères intelligents
+   * Version légère pour monitoring fréquent (15-30min)
+   */
+  async checkAndClosePositionsIntelligent(prediction: TimesFMPrediction, currentPrice: number): Promise<{
+    positions_checked: number;
+    positions_closed: number;
+    closures: Array<{ id: number; reasons: string[]; pnl: number }>;
+  }> {
+    try {
+      // Récupérer toutes les positions ouvertes
+      const openPositions = await this.db.prepare(`
+        SELECT * FROM paper_trades WHERE status = 'open'
+      `).all();
+      
+      const results = {
+        positions_checked: openPositions.results.length,
+        positions_closed: 0,
+        closures: [] as Array<{ id: number; reasons: string[]; pnl: number }>
+      };
+      
+      for (const position of openPositions.results) {
+        const trade = position as any;
+        
+        // Évaluer si la position doit être fermée
+        const evaluation = this.shouldClosePosition(trade, prediction, currentPrice);
+        
+        if (evaluation.shouldClose) {
+          try {
+            // Fermer la position
+            const closedTrade = await this.closePosition(
+              trade.id, 
+              currentPrice, 
+              evaluation.reasons.join(',')
+            );
+            
+            results.positions_closed++;
+            results.closures.push({
+              id: trade.id,
+              reasons: evaluation.reasons,
+              pnl: closedTrade.net_pnl || 0
+            });
+            
+            // Log de la fermeture intelligente
+            await this.db.prepare(`
+              INSERT INTO system_logs (timestamp, level, component, message, context_data)
+              VALUES (CURRENT_TIMESTAMP, 'INFO', 'trading', 'Intelligent position closure', ?)
+            `).bind(
+              JSON.stringify({
+                position_id: trade.id,
+                side: trade.side,
+                entry_price: trade.entry_price,
+                exit_price: currentPrice,
+                reasons: evaluation.reasons,
+                pnl: closedTrade.net_pnl || 0,
+                profit_probability: this.calculateProfitProbability(trade, prediction, currentPrice)
+              })
+            ).run().catch(() => {});
+            
+            console.log(`🧠 Intelligent closure: ${trade.side} position (${evaluation.reasons.join(',')}) - P&L: $${(closedTrade.net_pnl || 0).toFixed(2)}`);
+            
+          } catch (closeError) {
+            console.error(`Error closing position ${trade.id}:`, closeError);
+          }
+        }
+      }
+      
+      return results;
+      
+    } catch (error) {
+      console.error('Error in intelligent position check:', error);
+      return {
+        positions_checked: 0,
+        positions_closed: 0,
+        closures: []
+      };
     }
   }
 }

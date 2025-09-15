@@ -197,7 +197,7 @@ app.post('/api/trading/signal', async (c) => {
     
     // Générer signal de trading
     const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
-    const signal = await tradingEngine.generateSignal(prediction, currentPrice)
+    const signal = await tradingEngine.generateSignal('ETHUSDT')
     
     // Exécuter le trade si le signal n'est pas "hold"
     let trade = null
@@ -765,6 +765,94 @@ app.get('/api/automation/heartbeat', async (c) => {
   }
 })
 
+// Monitoring léger - Vérifie seulement les positions ouvertes (15-30min)
+app.post('/api/automation/light-monitoring', async (c) => {
+  try {
+    const startTime = Date.now()
+    
+    console.log('🔍 Light monitoring: checking open positions...')
+    
+    // 1. Récupérer prix actuel ETH (léger, pas de data historique)
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const currentPrice = await coinGecko.getCurrentETHPrice()
+    
+    if (!currentPrice) {
+      throw new Error('Could not fetch current ETH price')
+    }
+    
+    // 2. Récupérer la dernière prédiction en base (pas de nouveau calcul TimesFM)
+    const lastPrediction = await c.env.DB.prepare(`
+      SELECT * FROM predictions 
+      ORDER BY timestamp DESC 
+      LIMIT 1
+    `).first() as any
+    
+    if (!lastPrediction) {
+      return c.json({
+        success: false,
+        message: 'No recent prediction available for position evaluation',
+        current_price: currentPrice
+      })
+    }
+    
+    // Reconstituer l'objet prédiction
+    const prediction = {
+      predicted_price: lastPrediction.predicted_price,
+      predicted_return: lastPrediction.predicted_return,
+      confidence_score: lastPrediction.confidence_score,
+      quantile_10: lastPrediction.quantile_10,
+      quantile_90: lastPrediction.quantile_90
+    }
+    
+    // 3. Vérification intelligente des positions avec la dernière prédiction
+    const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+    const results = await tradingEngine.checkAndClosePositionsIntelligent(prediction, currentPrice)
+    
+    const executionTime = Date.now() - startTime
+    
+    // 4. Log du monitoring léger
+    await c.env.DB.prepare(`
+      INSERT INTO system_logs (timestamp, level, component, message, context_data, execution_time_ms)
+      VALUES (CURRENT_TIMESTAMP, 'INFO', 'automation', 'Light monitoring completed', ?, ?)
+    `).bind(
+      JSON.stringify({
+        positions_checked: results.positions_checked,
+        positions_closed: results.positions_closed,
+        current_price: currentPrice,
+        prediction_age_minutes: Math.round((Date.now() - new Date(lastPrediction.timestamp).getTime()) / 60000),
+        closures: results.closures
+      }),
+      executionTime
+    ).run().catch(() => {})
+    
+    console.log(`🔍 Light monitoring completed: ${results.positions_closed}/${results.positions_checked} positions closed in ${executionTime}ms`)
+    
+    return c.json({
+      success: true,
+      message: `Light monitoring completed in ${executionTime}ms`,
+      execution_time_ms: executionTime,
+      current_price: currentPrice,
+      positions_checked: results.positions_checked,
+      positions_closed: results.positions_closed,
+      closures: results.closures,
+      prediction_used: {
+        timestamp: lastPrediction.timestamp,
+        age_minutes: Math.round((Date.now() - new Date(lastPrediction.timestamp).getTime()) / 60000),
+        confidence: lastPrediction.confidence_score
+      },
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Light monitoring failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Light monitoring failed',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Endpoint pour mise à jour manuelle des données seulement
 app.post('/api/automation/update-data-only', async (c) => {
   try {
@@ -908,7 +996,7 @@ app.post('/api/admin/run-automation', async (c) => {
     const prediction = await timesFM.predictNextHours('ETHUSDT', 24, currentPrice)
     
     // 4. Générer et potentiellement exécuter un signal de trading
-    const signal = await tradingEngine.generateSignal(prediction, currentPrice)
+    const signal = await tradingEngine.generateSignal('ETHUSDT')
     
     let trade = null
     if (signal.action !== 'hold') {
