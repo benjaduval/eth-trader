@@ -622,6 +622,46 @@ app.get('/api/logs/timesfm', async (c) => {
   }
 })
 
+// Route pour initialiser le schema de base de données
+app.post('/api/admin/init-database', async (c) => {
+  try {
+    console.log('🔄 Initializing database schema...');
+    
+    if (!c.env.DB) {
+      throw new Error('Database not available');
+    }
+
+    // Créer table system_logs en priorité
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS system_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          level TEXT NOT NULL,
+          component TEXT NOT NULL,
+          message TEXT NOT NULL,
+          execution_time_ms REAL,
+          memory_usage_mb REAL,
+          api_calls_count INTEGER DEFAULT 0,
+          context_data TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+
+    console.log('✅ System logs table created');
+
+    return c.json({
+      success: true,
+      message: 'Database schema initialized successfully'
+    });
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Database initialization failed'
+    }, 500);
+  }
+});
+
 // Logs système généraux
 app.get('/api/logs/system', async (c) => {
   try {
@@ -690,11 +730,19 @@ app.post('/api/admin/fetch-real-historical-data', async (c) => {
   try {
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
     const hoursParam = parseInt(c.req.query('hours') || '72') // Par défaut 72h (3 jours)
+    const crypto = c.req.query('crypto') || 'ETH' // ETH par défaut
     
-    console.log(`🔄 Fetching REAL historical data for last ${hoursParam} hours...`)
+    console.log(`🔄 Fetching REAL historical data for ${crypto} for last ${hoursParam} hours...`)
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
     // Récupérer les vraies données historiques CoinGecko Pro
-    const realHistoricalData = await coinGecko.getLatestRealData(hoursParam)
+    const realHistoricalData = await coinGecko.getLatestRealData(crypto.toUpperCase(), hoursParam)
     
     if (!realHistoricalData || realHistoricalData.length === 0) {
       throw new Error('No real historical data available from CoinGecko')
@@ -709,9 +757,10 @@ app.post('/api/admin/fetch-real-historical-data', async (c) => {
         const result = await c.env.DB.prepare(`
           INSERT OR REPLACE INTO market_data 
           (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap, created_at)
-          VALUES (?, 'ETHUSDT', '1h', ?, ?, ?, ?, ?, NULL, CURRENT_TIMESTAMP)
+          VALUES (?, ?, '1h', ?, ?, ?, ?, ?, NULL, CURRENT_TIMESTAMP)
         `).bind(
           dataPoint.timestamp,
+          symbol,
           dataPoint.open,
           dataPoint.high,
           dataPoint.low,
@@ -737,6 +786,8 @@ app.post('/api/admin/fetch-real-historical-data', async (c) => {
       VALUES (CURRENT_TIMESTAMP, 'INFO', 'coingecko', 'Real historical data fetched', ?, ?)
     `).bind(
       JSON.stringify({
+        crypto: crypto.toUpperCase(),
+        symbol: symbol,
         hours_requested: hoursParam,
         data_points_received: realHistoricalData.length,
         inserted: insertedCount,
@@ -749,11 +800,13 @@ app.post('/api/admin/fetch-real-historical-data', async (c) => {
       null
     ).run()
     
-    console.log(`✅ Successfully processed ${realHistoricalData.length} REAL data points`)
+    console.log(`✅ Successfully processed ${realHistoricalData.length} REAL ${crypto} data points`)
     
     return c.json({
       success: true,
-      message: `Successfully processed ${realHistoricalData.length} REAL historical data points`,
+      message: `Successfully processed ${realHistoricalData.length} REAL ${crypto} historical data points`,
+      crypto: crypto.toUpperCase(),
+      symbol: symbol,
       data_points_fetched: realHistoricalData.length,
       inserted_count: insertedCount,
       updated_count: updatedCount,
