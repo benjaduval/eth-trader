@@ -23,6 +23,24 @@ export class TimesFMPredictor {
     this.db = db;
   }
 
+  // Méthode utilitaire pour convertir crypto -> symbol trading
+  private getCryptoSymbol(input: string): string {
+    // Si c'est déjà un symbol comme ETHUSDT, BTCUSDT, le garder tel quel
+    if (input.includes('USDT') || input.includes('USD')) {
+      return input;
+    }
+    
+    // Sinon, convertir crypto -> symbol
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT',
+      'ETHEREUM': 'ETHUSDT', 
+      'BITCOIN': 'BTCUSDT'
+    };
+    
+    return cryptoMap[input.toUpperCase()] || input;
+  }
+
   async predictNextHours(
     symbol: string = 'ETHUSDT', 
     horizonHours: number = 24,
@@ -30,17 +48,21 @@ export class TimesFMPredictor {
   ): Promise<TimesFMPrediction> {
     const startTime = Date.now();
     
+    // Normaliser le symbol pour supporter BTC et ETH
+    const normalizedSymbol = this.getCryptoSymbol(symbol);
+    
     try {
       // Log début de prédiction
       await this.logTimesFMCall('Starting TimesFM prediction', {
-        symbol,
+        symbol: normalizedSymbol,
+        originalSymbol: symbol,
         horizonHours,
         currentPrice,
         timestamp: new Date().toISOString()
       });
 
       // Récupérer les données historiques récentes
-      const historicalData = await this.getHistoricalData(symbol, 168); // 7 jours
+      const historicalData = await this.getHistoricalData(normalizedSymbol, 168); // 7 jours
       
       if (historicalData.length < 20) {
         await this.logTimesFMCall('Insufficient historical data', {
@@ -49,7 +71,7 @@ export class TimesFMPredictor {
           fallback: 'neutral_prediction'
         });
         // Pas assez de données, retourner une prédiction neutre
-        return this.createNeutralPrediction(symbol, currentPrice, horizonHours);
+        return this.createNeutralPrediction(normalizedSymbol, currentPrice, horizonHours);
       }
 
       // Calculer les indicateurs techniques
@@ -60,7 +82,7 @@ export class TimesFMPredictor {
       
       // Générer la prédiction
       const prediction = this.generatePrediction(
-        symbol, 
+        normalizedSymbol, 
         currentPrice, 
         horizonHours, 
         indicators, 
@@ -92,7 +114,7 @@ export class TimesFMPredictor {
       });
       
       console.error('Error in TimesFM prediction:', error);
-      return this.createNeutralPrediction(symbol, currentPrice, horizonHours);
+      return this.createNeutralPrediction(normalizedSymbol, currentPrice, horizonHours);
     }
   }
 

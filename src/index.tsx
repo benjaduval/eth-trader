@@ -41,23 +41,90 @@ app.get('/api/health', (c) => {
     services: {
       database: !!c.env.DB,
       coingecko_api: !!c.env.COINGECKO_API_KEY
-    }
+    },
+    supported_cryptos: CoinGeckoService.getSupportedCryptos()
   })
+})
+
+// Route pour obtenir la liste des cryptos supportées
+app.get('/api/cryptos/supported', (c) => {
+  const supportedCryptos = CoinGeckoService.getSupportedCryptos().map(crypto => ({
+    crypto,
+    info: CoinGeckoService.getCryptoInfo(crypto)
+  }))
+  
+  return c.json({
+    success: true,
+    cryptos: supportedCryptos,
+    count: supportedCryptos.length
+  })
+})
+
+// Comparaison multi-cryptos 
+app.get('/api/cryptos/compare', async (c) => {
+  try {
+    const cryptos = ['ETH', 'BTC'] // Par défaut, comparer ETH et BTC
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    
+    const comparisons = await Promise.all(
+      cryptos.map(async (crypto) => {
+        try {
+          const price = await coinGecko.getCurrentCryptoPrice(crypto)
+          const marketData = await coinGecko.getCryptoMarketData(crypto)
+          
+          return {
+            crypto,
+            price,
+            market_cap: marketData?.market_data?.market_cap?.usd || 0,
+            change_24h: marketData?.market_data?.price_change_percentage_24h || 0,
+            volume_24h: marketData?.market_data?.total_volume?.usd || 0,
+            timestamp: new Date().toISOString()
+          }
+        } catch (error) {
+          console.warn(`Failed to get ${crypto} data:`, error)
+          return {
+            crypto,
+            price: 0,
+            market_cap: 0,
+            change_24h: 0,
+            volume_24h: 0,
+            error: true,
+            timestamp: new Date().toISOString()
+          }
+        }
+      })
+    )
+    
+    return c.json({
+      success: true,
+      comparisons,
+      count: comparisons.length,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: 'Failed to compare cryptos',
+      comparisons: []
+    }, 500)
+  }
 })
 
 // ===============================
 // MARKET DATA ROUTES
 // ===============================
 
-// Données de marché actuelles
+// Données de marché actuelles (multi-crypto)
 app.get('/api/market/current', async (c) => {
   try {
+    const crypto = c.req.query('crypto') || 'ETH' // ETH par défaut
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
-    const data = await coinGecko.getEnhancedMarketData()
+    const data = await coinGecko.getEnhancedMarketData(crypto.toUpperCase())
     
     return c.json({
       success: true,
       data,
+      crypto: crypto.toUpperCase(),
       timestamp: new Date().toISOString()
     })
   } catch (error) {
@@ -70,16 +137,25 @@ app.get('/api/market/current', async (c) => {
   }
 })
 
-// Prix ETH actuel simple
+// Prix crypto actuel (multi-crypto)
 app.get('/api/market/price', async (c) => {
   try {
+    const crypto = c.req.query('crypto') || 'ETH' // ETH par défaut
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
-    const price = await coinGecko.getCurrentETHPrice()
+    const price = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
     return c.json({
       success: true,
       price,
-      symbol: 'ETHUSDT',
+      crypto: crypto.toUpperCase(),
+      symbol,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
@@ -91,24 +167,34 @@ app.get('/api/market/price', async (c) => {
   }
 })
 
-// Données OHLCV historiques
+// Données OHLCV historiques (multi-crypto)
 app.get('/api/market/history', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '24')
+    const crypto = c.req.query('crypto') || 'ETH'
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
     const result = await c.env.DB.prepare(`
       SELECT timestamp, open_price as open, high_price as high, 
              low_price as low, close_price as close, volume
       FROM market_data 
-      WHERE symbol = 'ETHUSDT'
+      WHERE symbol = ?
       ORDER BY timestamp DESC 
       LIMIT ?
-    `).bind(limit).all()
+    `).bind(symbol, limit).all()
     
     return c.json({
       success: true,
       data: result.results.reverse(), // Plus ancien -> plus récent
-      count: result.results.length
+      count: result.results.length,
+      crypto: crypto.toUpperCase(),
+      symbol
     })
   } catch (error) {
     return c.json({
@@ -123,27 +209,36 @@ app.get('/api/market/history', async (c) => {
 // PREDICTIONS ROUTES  
 // ===============================
 
-// Générer une nouvelle prédiction
+// Générer une nouvelle prédiction (multi-crypto)
 app.post('/api/predictions/generate', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}))
     const horizonHours = parseInt(body.horizon || '24')
+    const crypto = body.crypto || 'ETH'
     
     // Récupérer le prix actuel
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
-    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
     
     if (!currentPrice) {
-      throw new Error('Could not fetch current price')
+      throw new Error(`Could not fetch current ${crypto} price`)
     }
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
     // Générer la prédiction
     const predictor = new TimesFMPredictor(c.env.DB)
-    const prediction = await predictor.predictNextHours('ETHUSDT', horizonHours, currentPrice)
+    const prediction = await predictor.predictNextHours(symbol, horizonHours, currentPrice)
     
     return c.json({
       success: true,
       prediction,
+      crypto: crypto.toUpperCase(),
       timestamp: new Date().toISOString()
     })
   } catch (error) {
@@ -155,17 +250,46 @@ app.post('/api/predictions/generate', async (c) => {
   }
 })
 
-// Récupérer les dernières prédictions
+// Récupérer les dernières prédictions (multi-crypto)
 app.get('/api/predictions/latest', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '5')
+    const crypto = c.req.query('crypto') || 'ETH'
+    
+    // Déterminer le symbol de trading pour le filtre
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
+    
     const predictor = new TimesFMPredictor(c.env.DB)
-    const predictions = await predictor.getLatestPredictions(limit)
+    // On peut soit adapter getLatestPredictions pour accepter un symbol
+    // Soit faire la requête directement ici
+    const result = await c.env.DB.prepare(`
+      SELECT * FROM predictions 
+      WHERE symbol = ?
+      ORDER BY timestamp DESC 
+      LIMIT ?
+    `).bind(symbol, limit).all()
+    
+    const predictions = result.results.map((row: any) => ({
+      symbol: row.symbol,
+      timestamp: new Date(row.timestamp),
+      predicted_price: row.predicted_price,
+      predicted_return: row.predicted_return,
+      confidence_score: row.confidence_score,
+      horizon_hours: row.horizon_hours,
+      quantile_10: row.quantile_10,
+      quantile_90: row.quantile_90
+    }));
     
     return c.json({
       success: true,
       predictions,
-      count: predictions.length
+      count: predictions.length,
+      crypto: crypto.toUpperCase(),
+      symbol
     })
   } catch (error) {
     return c.json({
@@ -180,24 +304,34 @@ app.get('/api/predictions/latest', async (c) => {
 // TRADING ROUTES
 // ===============================
 
-// Générer et exécuter un signal de trading
+// Générer et exécuter un signal de trading (multi-crypto)
 app.post('/api/trading/signal', async (c) => {
   try {
+    const body = await c.req.json().catch(() => ({}))
+    const crypto = body.crypto || 'ETH'
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
+    
     // Récupérer le prix actuel
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
-    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
     
     if (!currentPrice) {
-      throw new Error('Could not fetch current price')
+      throw new Error(`Could not fetch current ${crypto} price`)
     }
     
     // Générer prédiction
     const predictor = new TimesFMPredictor(c.env.DB)
-    const prediction = await predictor.predictNextHours('ETHUSDT', 24, currentPrice)
+    const prediction = await predictor.predictNextHours(symbol, 24, currentPrice)
     
     // Générer signal de trading
     const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
-    const signal = await tradingEngine.generateSignal('ETHUSDT')
+    const signal = await tradingEngine.generateSignal(symbol)
     
     // Exécuter le trade si le signal n'est pas "hold"
     let trade = null
@@ -210,6 +344,8 @@ app.post('/api/trading/signal', async (c) => {
       signal,
       trade,
       prediction,
+      crypto: crypto.toUpperCase(),
+      symbol,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
@@ -322,31 +458,57 @@ app.get('/api/trading/history', async (c) => {
 // DASHBOARD ROUTE
 // ===============================
 
-// Données complètes du dashboard
+// Données complètes du dashboard (multi-crypto)
 app.get('/api/dashboard', async (c) => {
   try {
+    const crypto = c.req.query('crypto') || 'ETH'
+    
     // Récupérer toutes les données en parallèle (mais séquentiel pour éviter les rate limits)
     const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
     const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
-    const predictor = new TimesFMPredictor(c.env.DB, c.env)
     
-    // Prix actuel
-    const currentPrice = await coinGecko.getCurrentETHPrice()
+    // Prix actuel pour la crypto sélectionnée
+    const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
     // Positions et métriques
-    const [activePositions, metrics, recentTrades, latestPredictions] = await Promise.all([
-      tradingEngine.getActivePositions(),
+    const [activePositions, metrics, recentTrades] = await Promise.all([
+      tradingEngine.getActivePositions(), // Toutes les positions (multi-crypto)
       tradingEngine.getPerformanceMetrics(30),
-      tradingEngine.getRecentTrades(10),
-      predictor.getLatestPredictions(3)
+      tradingEngine.getRecentTrades(10)
     ])
+    
+    // Prédictions pour la crypto sélectionnée
+    const latestPredictionsResult = await c.env.DB.prepare(`
+      SELECT * FROM predictions 
+      WHERE symbol = ?
+      ORDER BY timestamp DESC 
+      LIMIT 3
+    `).bind(symbol).all()
+    
+    const latestPredictions = latestPredictionsResult.results.map((row: any) => ({
+      symbol: row.symbol,
+      timestamp: new Date(row.timestamp),
+      predicted_price: row.predicted_price,
+      predicted_return: row.predicted_return,
+      confidence_score: row.confidence_score,
+      horizon_hours: row.horizon_hours,
+      quantile_10: row.quantile_10,
+      quantile_90: row.quantile_90
+    }))
     
     // Balance actuelle
     const currentBalance = await tradingEngine.getCurrentBalance()
     
     // Données de marché (optionnel, peut être lourd)
     const marketData = c.req.query('include_market') === 'true' 
-      ? await coinGecko.getEnhancedMarketData() 
+      ? await coinGecko.getEnhancedMarketData(crypto.toUpperCase()) 
       : null
     
     return c.json({
@@ -358,7 +520,9 @@ app.get('/api/dashboard', async (c) => {
         metrics: metrics,
         recent_trades: recentTrades,
         latest_predictions: latestPredictions,
-        market_data: marketData
+        market_data: marketData,
+        crypto: crypto.toUpperCase(),
+        symbol: symbol
       },
       timestamp: new Date().toISOString()
     })
@@ -1336,7 +1500,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ETH Trader Pro - Automated Paper Trading with TimesFM</title>
+        <title>Multi-Crypto Trader Pro - ETH & BTC Analysis with TimesFM</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1347,8 +1511,8 @@ app.get('/', (c) => {
         <div id="app" class="container mx-auto px-4 py-8">
             <div class="text-center py-8">
                 <i class="fas fa-chart-line text-6xl text-green-400 mb-4"></i>
-                <h1 class="text-4xl font-bold mb-2">ETH Trader Pro</h1>
-                <p class="text-gray-400 text-lg mb-8">Automated Paper Trading with TimesFM & CoinGecko Pro</p>
+                <h1 class="text-4xl font-bold mb-2">Multi-Crypto Trader Pro</h1>
+                <p class="text-gray-400 text-lg mb-8">ETH & BTC Analysis with TimesFM & CoinGecko Pro</p>
                 <div id="loading" class="text-center">
                     <i class="fas fa-spinner fa-spin text-2xl text-blue-400"></i>
                     <p class="mt-2">Loading dashboard...</p>
@@ -1361,7 +1525,7 @@ app.get('/', (c) => {
             </div>
         </div>
         
-        <script src="/static/app-en.js"></script>
+        <script src="/static/app-multi-crypto.js"></script>
     </body>
     </html>
   `)

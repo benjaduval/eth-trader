@@ -41,6 +41,26 @@ class RateLimiter {
   }
 }
 
+// Configuration des cryptomonnaies supportées
+interface CoinConfig {
+  coinGeckoId: string;  // ID CoinGecko (ex: 'ethereum', 'bitcoin')
+  symbol: string;       // Symbol trading (ex: 'ETHUSDT', 'BTCUSDT') 
+  displayName: string;  // Nom d'affichage
+}
+
+const SUPPORTED_COINS: Record<string, CoinConfig> = {
+  'ETH': {
+    coinGeckoId: 'ethereum',
+    symbol: 'ETHUSDT',
+    displayName: 'Ethereum'
+  },
+  'BTC': {
+    coinGeckoId: 'bitcoin',
+    symbol: 'BTCUSDT', 
+    displayName: 'Bitcoin'
+  }
+};
+
 export class CoinGeckoService {
   private config: CoinGeckoConfig;
   private rateLimiter: RateLimiter;
@@ -53,6 +73,15 @@ export class CoinGeckoService {
     };
     
     this.rateLimiter = new RateLimiter(this.config.rateLimit);
+  }
+
+  // Méthode utilitaire pour obtenir la config d'une crypto
+  private getCoinConfig(crypto: string): CoinConfig {
+    const coinConfig = SUPPORTED_COINS[crypto.toUpperCase()];
+    if (!coinConfig) {
+      throw new Error(`Unsupported cryptocurrency: ${crypto}. Supported: ${Object.keys(SUPPORTED_COINS).join(', ')}`);
+    }
+    return coinConfig;
   }
 
   private async makeRequest(endpoint: string, params?: Record<string, any>): Promise<any> {
@@ -89,9 +118,10 @@ export class CoinGeckoService {
     return response.json();
   }
 
-  async getETHPriceData(): Promise<any> {
+  async getCryptoPriceData(crypto: string = 'ETH'): Promise<any> {
+    const coinConfig = this.getCoinConfig(crypto);
     const params = {
-      ids: 'ethereum',
+      ids: coinConfig.coinGeckoId,
       vs_currencies: 'usd',
       include_market_cap: 'true',
       include_24hr_vol: 'true',
@@ -102,30 +132,47 @@ export class CoinGeckoService {
     return this.makeRequest('simple/price', params);
   }
 
-  async getETHMarketData(): Promise<any> {
-    return this.makeRequest('coins/ethereum');
+  // Méthode de compatibilité (alias pour ETH)
+  async getETHPriceData(): Promise<any> {
+    return this.getCryptoPriceData('ETH');
   }
 
-  async getETHOHLCV(days: number = 1): Promise<number[][]> {
+  async getCryptoMarketData(crypto: string = 'ETH'): Promise<any> {
+    const coinConfig = this.getCoinConfig(crypto);
+    return this.makeRequest(`coins/${coinConfig.coinGeckoId}`);
+  }
+
+  // Méthode de compatibilité (alias pour ETH)
+  async getETHMarketData(): Promise<any> {
+    return this.getCryptoMarketData('ETH');
+  }
+
+  async getCryptoOHLCV(crypto: string = 'ETH', days: number = 1): Promise<number[][]> {
+    const coinConfig = this.getCoinConfig(crypto);
     const params = {
       vs_currency: 'usd',
       days: days
     };
     
-    return this.makeRequest('coins/ethereum/ohlc', params);
+    return this.makeRequest(`coins/${coinConfig.coinGeckoId}/ohlc`, params);
   }
 
-  async getDerivativesData(): Promise<any> {
+  // Méthode de compatibilité (alias pour ETH)
+  async getETHOHLCV(days: number = 1): Promise<number[][]> {
+    return this.getCryptoOHLCV('ETH', days);
+  }
+
+  async getDerivativesData(crypto: string = 'ETH'): Promise<any> {
     try {
       const derivatives = await this.makeRequest('derivatives');
       
-      // Filtrer pour ETH
-      const ethDerivatives = derivatives.filter((d: any) => 
-        d.symbol && d.symbol.toUpperCase().includes('ETH')
+      // Filtrer pour la crypto demandée
+      const cryptoDerivatives = derivatives.filter((d: any) => 
+        d.symbol && d.symbol.toUpperCase().includes(crypto.toUpperCase())
       );
 
       return {
-        derivatives: ethDerivatives,
+        derivatives: cryptoDerivatives,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
@@ -165,18 +212,18 @@ export class CoinGeckoService {
     return this.makeRequest('search/trending');
   }
 
-  async getEnhancedMarketData(): Promise<CoinGeckoResponse> {
+  async getEnhancedMarketData(crypto: string = 'ETH'): Promise<CoinGeckoResponse> {
     try {
-      console.log('🔄 Fetching enhanced market data from CoinGecko Pro...');
+      console.log(`🔄 Fetching enhanced market data for ${crypto} from CoinGecko Pro...`);
       
       // Exécution séquentielle pour éviter de surcharger l'API
-      const priceData = await this.getETHPriceData();
+      const priceData = await this.getCryptoPriceData(crypto);
       await new Promise(resolve => setTimeout(resolve, 200)); // Petit délai
 
-      const marketData = await this.getETHMarketData();
+      const marketData = await this.getCryptoMarketData(crypto);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      const derivatives = await this.getDerivativesData();
+      const derivatives = await this.getDerivativesData(crypto);
       await new Promise(resolve => setTimeout(resolve, 200));
 
       const fearGreed = await this.getFearGreedIndex();
@@ -184,7 +231,7 @@ export class CoinGeckoService {
 
       const trending = await this.getTrendingCoins();
 
-      console.log('✅ Enhanced market data fetched successfully');
+      console.log(`✅ Enhanced market data for ${crypto} fetched successfully`);
 
       return {
         price_data: priceData,
@@ -193,30 +240,43 @@ export class CoinGeckoService {
         fear_greed: fearGreed,
         trending: trending,
         timestamp: new Date().toISOString(),
-        api_calls_used: 5
+        api_calls_used: 5,
+        crypto: crypto
       };
     } catch (error) {
-      console.error('❌ Enhanced market data fetch failed:', error);
+      console.error(`❌ Enhanced market data fetch failed for ${crypto}:`, error);
       return {
         error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        crypto: crypto
       };
     }
   }
 
-  // Méthode simple pour obtenir juste le prix ETH/USD actuel
-  async getCurrentETHPrice(): Promise<number> {
+  // Méthode générique pour obtenir le prix actuel d'une crypto
+  async getCurrentCryptoPrice(crypto: string = 'ETH'): Promise<number> {
     try {
-      const data = await this.getETHPriceData();
-      return data.ethereum?.usd || 0;
+      const coinConfig = this.getCoinConfig(crypto);
+      const data = await this.getCryptoPriceData(crypto);
+      return data[coinConfig.coinGeckoId]?.usd || 0;
     } catch (error) {
-      console.error('Failed to get ETH price:', error);
+      console.error(`Failed to get ${crypto} price:`, error);
       return 0;
     }
   }
 
-  // Méthode pour obtenir les données OHLC récentes formatées
-  async getLatestCandle(): Promise<{
+  // Méthode de compatibilité (alias pour ETH)
+  async getCurrentETHPrice(): Promise<number> {
+    return this.getCurrentCryptoPrice('ETH');
+  }
+
+  // Nouvelle méthode pour BTC
+  async getCurrentBTCPrice(): Promise<number> {
+    return this.getCurrentCryptoPrice('BTC');
+  }
+
+  // Méthode générique pour obtenir les données OHLC récentes formatées
+  async getLatestCandle(crypto: string = 'ETH'): Promise<{
     timestamp: Date;
     open: number;
     high: number;
@@ -225,7 +285,7 @@ export class CoinGeckoService {
     volume: number;
   } | null> {
     try {
-      const ohlcData = await this.getETHOHLCV(1); // 1 jour de données
+      const ohlcData = await this.getCryptoOHLCV(crypto, 1); // 1 jour de données
       
       if (!ohlcData || ohlcData.length === 0) {
         return null;
@@ -243,13 +303,13 @@ export class CoinGeckoService {
         volume: 0 // CoinGecko OHLC n'inclut pas le volume dans cette réponse
       };
     } catch (error) {
-      console.error('Failed to get latest candle:', error);
+      console.error(`Failed to get latest candle for ${crypto}:`, error);
       return null;
     }
   }
 
   // Méthode avancée pour récupérer des données historiques réelles avec prix et volume
-  async getRealHistoricalData(days: number = 7): Promise<Array<{
+  async getRealHistoricalData(crypto: string = 'ETH', days: number = 7): Promise<Array<{
     timestamp: string;
     open: number;
     high: number;
@@ -258,10 +318,12 @@ export class CoinGeckoService {
     volume: number;
   }>> {
     try {
-      console.log(`🔄 Fetching REAL ${days} days of historical market data from CoinGecko Pro...`);
+      console.log(`🔄 Fetching REAL ${days} days of historical market data for ${crypto} from CoinGecko Pro...`);
+      
+      const coinConfig = this.getCoinConfig(crypto);
       
       // 1. Récupérer les données OHLC (prix)
-      const ohlcData = await this.getETHOHLCV(days);
+      const ohlcData = await this.getCryptoOHLCV(crypto, days);
       
       if (!ohlcData || ohlcData.length === 0) {
         throw new Error('No OHLC data received');
@@ -270,16 +332,16 @@ export class CoinGeckoService {
       // 2. Récupérer les données de volume séparément avec market_chart
       let volumeData: number[][] = [];
       try {
-        const marketChart = await this.makeRequest('coins/ethereum/market_chart', {
+        const marketChart = await this.makeRequest(`coins/${coinConfig.coinGeckoId}/market_chart`, {
           vs_currency: 'usd',
           days: days,
           interval: days > 1 ? 'hourly' : 'minutely'
         });
         
         volumeData = marketChart.total_volumes || [];
-        console.log(`📊 Retrieved ${volumeData.length} volume data points`);
+        console.log(`📊 Retrieved ${volumeData.length} volume data points for ${crypto}`);
       } catch (volumeError) {
-        console.warn('Could not fetch volume data, using zero values');
+        console.warn(`Could not fetch volume data for ${crypto}, using zero values`);
       }
 
       // 3. Combiner OHLC avec volume data
@@ -309,19 +371,19 @@ export class CoinGeckoService {
       // 4. Trier par timestamp croissant et prendre les plus récents
       formattedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      console.log(`✅ Successfully formatted ${formattedData.length} real historical data points`);
+      console.log(`✅ Successfully formatted ${formattedData.length} real historical data points for ${crypto}`);
       console.log(`📅 Data range: ${formattedData[0]?.timestamp} to ${formattedData[formattedData.length - 1]?.timestamp}`);
       
       return formattedData;
       
     } catch (error) {
-      console.error('❌ Real historical data fetch failed:', error);
-      throw new Error(`Real historical data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ Real historical data fetch failed for ${crypto}:`, error);
+      throw new Error(`Real historical data fetch failed for ${crypto}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   // Méthode pour récupérer uniquement les dernières données (dernières heures)
-  async getLatestRealData(hours: number = 72): Promise<Array<{
+  async getLatestRealData(crypto: string = 'ETH', hours: number = 72): Promise<Array<{
     timestamp: string;
     open: number;
     high: number;
@@ -332,7 +394,7 @@ export class CoinGeckoService {
     try {
       // Récupérer plusieurs jours pour avoir assez de données récentes
       const days = Math.max(1, Math.ceil(hours / 24));
-      const allData = await this.getRealHistoricalData(days);
+      const allData = await this.getRealHistoricalData(crypto, days);
       
       // Filtrer pour garder seulement les dernières heures
       const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
@@ -340,17 +402,17 @@ export class CoinGeckoService {
         new Date(candle.timestamp).getTime() >= cutoffTime
       );
       
-      console.log(`🕒 Filtered to ${recentData.length} data points from last ${hours} hours`);
+      console.log(`🕒 Filtered to ${recentData.length} data points from last ${hours} hours for ${crypto}`);
       return recentData;
       
     } catch (error) {
-      console.error('Failed to get latest real data:', error);
+      console.error(`Failed to get latest real data for ${crypto}:`, error);
       throw error;
     }
   }
 
   // Méthode optimisée pour initialisation massive (450 points max)
-  async initializeMassiveHistoricalData(targetPoints: number = 450): Promise<Array<{
+  async initializeMassiveHistoricalData(crypto: string = 'ETH', targetPoints: number = 450): Promise<Array<{
     timestamp: string;
     open: number;
     high: number;
@@ -359,20 +421,20 @@ export class CoinGeckoService {
     volume: number;
   }>> {
     try {
-      console.log(`🚀 Initializing ${targetPoints} historical data points with alternative approach...`);
+      console.log(`🚀 Initializing ${targetPoints} historical data points for ${crypto} with alternative approach...`);
       
       // Approche alternative : récupérer les données par blocs pour éviter l'erreur 400
       const allPoints: any[] = [];
       const blocksNeeded = Math.ceil(targetPoints / 48); // Blocs de 2 jours (48h)
       
-      console.log(`📦 Fetching ${blocksNeeded} blocks of 2-day data to reach ${targetPoints} points`);
+      console.log(`📦 Fetching ${blocksNeeded} blocks of 2-day data to reach ${targetPoints} points for ${crypto}`);
       
       for (let i = 0; i < blocksNeeded && allPoints.length < targetPoints; i++) {
         try {
-          console.log(`📊 Fetching block ${i + 1}/${blocksNeeded}...`);
+          console.log(`📊 Fetching ${crypto} block ${i + 1}/${blocksNeeded}...`);
           
           // Récupérer 2 jours de données à la fois (approche plus stable)
-          const blockData = await this.getRealHistoricalData(2);
+          const blockData = await this.getRealHistoricalData(crypto, 2);
           
           if (blockData && blockData.length > 0) {
             // Éviter les doublons en filtrant par timestamp
@@ -381,7 +443,7 @@ export class CoinGeckoService {
             );
             
             allPoints.push(...newPoints);
-            console.log(`📈 Block ${i + 1}: +${newPoints.length} points (total: ${allPoints.length})`);
+            console.log(`📈 ${crypto} Block ${i + 1}: +${newPoints.length} points (total: ${allPoints.length})`);
           }
           
           // Petite pause entre blocs pour respecter rate limit
@@ -390,7 +452,7 @@ export class CoinGeckoService {
           }
           
         } catch (blockError) {
-          console.warn(`⚠️ Block ${i + 1} failed, continuing:`, blockError);
+          console.warn(`⚠️ ${crypto} Block ${i + 1} failed, continuing:`, blockError);
           // Continuer avec les autres blocs
         }
       }
@@ -401,20 +463,20 @@ export class CoinGeckoService {
         .slice(0, targetPoints)
         .reverse(); // Ordre chronologique
       
-      console.log(`✅ Retrieved ${sortedPoints.length} points for initialization`);
-      console.log(`📊 Data range: ${sortedPoints[0]?.timestamp} → ${sortedPoints[sortedPoints.length - 1]?.timestamp}`);
+      console.log(`✅ Retrieved ${sortedPoints.length} points for ${crypto} initialization`);
+      console.log(`📊 ${crypto} Data range: ${sortedPoints[0]?.timestamp} → ${sortedPoints[sortedPoints.length - 1]?.timestamp}`);
       
       return sortedPoints;
       
     } catch (error) {
-      console.error('❌ Failed to initialize massive historical data:', error);
+      console.error(`❌ Failed to initialize massive historical data for ${crypto}:`, error);
       
       // Fallback : utiliser données actuelles existantes
-      console.log('🔄 Attempting fallback to current data...');
+      console.log(`🔄 Attempting fallback to current ${crypto} data...`);
       try {
-        const currentPrice = await this.getCurrentETHPrice();
+        const currentPrice = await this.getCurrentCryptoPrice(crypto);
         if (currentPrice) {
-          console.log('📊 Generating basic data points from current price as emergency fallback');
+          console.log(`📊 Generating basic data points from current ${crypto} price as emergency fallback`);
           
           const fallbackPoints = [];
           const now = Date.now();
@@ -434,19 +496,19 @@ export class CoinGeckoService {
             });
           }
           
-          console.log(`🆘 Fallback generated ${fallbackPoints.length} basic data points`);
+          console.log(`🆘 Fallback generated ${fallbackPoints.length} basic data points for ${crypto}`);
           return fallbackPoints;
         }
       } catch (fallbackError) {
-        console.error('❌ Fallback also failed:', fallbackError);
+        console.error(`❌ ${crypto} Fallback also failed:`, fallbackError);
       }
       
-      throw new Error(`All initialization methods failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`All ${crypto} initialization methods failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   // Méthode pour updates incrémentaux (nouveaux points seulement)
-  async getIncrementalData(sinceTimestamp: string): Promise<Array<{
+  async getIncrementalData(crypto: string = 'ETH', sinceTimestamp: string): Promise<Array<{
     timestamp: string;
     open: number;
     high: number;
@@ -459,28 +521,28 @@ export class CoinGeckoService {
       const now = Date.now();
       const hoursSince = Math.ceil((now - sinceDate.getTime()) / (1000 * 60 * 60));
       
-      console.log(`🔄 Getting incremental data since ${sinceTimestamp} (${hoursSince} hours ago)`);
+      console.log(`🔄 Getting incremental ${crypto} data since ${sinceTimestamp} (${hoursSince} hours ago)`);
       
       if (hoursSince <= 0) {
-        console.log(`⏭️ No new data needed - already up to date`);
+        console.log(`⏭️ No new ${crypto} data needed - already up to date`);
         return [];
       }
       
       // Récupérer seulement les données depuis le dernier timestamp
-      const recentData = await this.getLatestRealData(Math.min(hoursSince + 2, 72)); // +2h de buffer
+      const recentData = await this.getLatestRealData(crypto, Math.min(hoursSince + 2, 72)); // +2h de buffer
       
       // Filtrer pour garder seulement les nouveaux points (après sinceTimestamp)
       const newPoints = recentData.filter(point => 
         new Date(point.timestamp).getTime() > sinceDate.getTime()
       );
       
-      console.log(`📈 Found ${newPoints.length} new incremental points`);
+      console.log(`📈 Found ${newPoints.length} new incremental ${crypto} points`);
       
       return newPoints;
       
     } catch (error) {
-      console.error('Failed to get incremental data:', error);
-      throw new Error(`Incremental data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Failed to get incremental ${crypto} data:`, error);
+      throw new Error(`Incremental ${crypto} data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -500,5 +562,15 @@ export class CoinGeckoService {
       calls_remaining_estimate: callsRemaining,
       recommended_delay_ms: recommendedDelay
     };
+  }
+
+  // Méthode utilitaire pour obtenir les cryptos supportées
+  static getSupportedCryptos(): string[] {
+    return Object.keys(SUPPORTED_COINS);
+  }
+
+  // Méthode utilitaire pour obtenir les infos d'une crypto
+  static getCryptoInfo(crypto: string): CoinConfig | null {
+    return SUPPORTED_COINS[crypto.toUpperCase()] || null;
   }
 }
