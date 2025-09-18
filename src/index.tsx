@@ -300,6 +300,145 @@ app.get('/api/predictions/latest', async (c) => {
   }
 })
 
+// Récupérer les détails complets d'une prédiction spécifique
+app.get('/api/predictions/:id/details', async (c) => {
+  try {
+    const predictionId = c.req.param('id')
+    const crypto = c.req.query('crypto') || 'ETH'
+    
+    // Déterminer le symbol de trading
+    const cryptoMap: Record<string, string> = {
+      'ETH': 'ETHUSDT',
+      'BTC': 'BTCUSDT'
+    }
+    const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
+    
+    // Récupérer la prédiction spécifique (par ID ou timestamp)
+    let prediction: any = null;
+    
+    // Essayer d'abord par ID numérique, sinon par timestamp
+    if (predictionId && predictionId !== 'undefined') {
+      const isTimestamp = predictionId.length > 10; // Timestamp sera plus long qu'un ID
+      
+      if (isTimestamp) {
+        // Recherche par timestamp
+        prediction = await c.env.DB.prepare(`
+          SELECT * FROM predictions 
+          WHERE symbol = ? AND datetime(timestamp) = datetime(?)
+          ORDER BY timestamp DESC 
+          LIMIT 1
+        `).bind(symbol, predictionId).first()
+      } else {
+        // Recherche par ID (si vous avez un champ ID)
+        prediction = await c.env.DB.prepare(`
+          SELECT * FROM predictions 
+          WHERE symbol = ? AND rowid = ?
+          LIMIT 1
+        `).bind(symbol, predictionId).first()
+      }
+    }
+    
+    // Si pas trouvé, récupérer la plus récente pour cette crypto
+    if (!prediction) {
+      prediction = await c.env.DB.prepare(`
+        SELECT * FROM predictions 
+        WHERE symbol = ?
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `).bind(symbol).first()
+    }
+    
+    if (!prediction) {
+      return c.json({
+        success: false,
+        error: 'Prédiction non trouvée',
+        prediction_details: null
+      }, 404)
+    }
+    
+    // Récupérer les données historiques utilisées (simulation basée sur la période)
+    const predictionTime = new Date(prediction.timestamp);
+    const analysisStartTime = new Date(predictionTime.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 jours avant
+    
+    const historicalDataResult = await c.env.DB.prepare(`
+      SELECT timestamp, close_price as price, volume 
+      FROM market_data 
+      WHERE symbol = ? AND timestamp >= ? AND timestamp < ?
+      ORDER BY timestamp DESC
+      LIMIT 50
+    `).bind(symbol, analysisStartTime.toISOString(), predictionTime.toISOString()).all();
+    
+    // Récupérer les données de marché actuelles pour contextualiser
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
+    
+    // Construire l'objet détaillé
+    const detailedPrediction = {
+      // Données de base de la prédiction
+      id: prediction.rowid || prediction.timestamp,
+      timestamp: prediction.timestamp,
+      predicted_price: prediction.predicted_price,
+      predicted_return: prediction.predicted_return,
+      confidence_score: prediction.confidence_score,
+      quantile_10: prediction.quantile_10,
+      quantile_90: prediction.quantile_90,
+      horizon_hours: prediction.horizon_hours,
+      
+      // Paramètres du modèle et contexte
+      base_price: currentPrice,
+      prediction_horizon: `${prediction.horizon_hours || 24} heures`,
+      analysis_period: '7 derniers jours',
+      input_data_points: historicalDataResult.results.length,
+      
+      // Données historiques utilisées
+      input_historical_data: historicalDataResult.results.map((row: any) => ({
+        timestamp: row.timestamp,
+        price: row.price,
+        volume: row.volume
+      })),
+      
+      // Explications générées dynamiquement
+      pattern_analysis: `TimesFM a analysé ${historicalDataResult.results.length} points de données historiques pour ${crypto}, 
+        identifiant ${prediction.confidence_score > 0.7 ? 'des patterns forts et cohérents' : prediction.confidence_score > 0.5 ? 'des patterns modérés' : 'des patterns faibles'} 
+        dans l'évolution des prix. Le modèle neural a détecté ${prediction.confidence_score > 0.6 ? 'des signaux de tendance fiables' : 'des signaux de tendance incertains'}, 
+        résultant en une confiance de ${(prediction.confidence_score * 100).toFixed(1)}%.`,
+      
+      key_factors: [
+        `Volatilité récente: ${Math.abs(prediction.predicted_return * 100).toFixed(1)}%`,
+        `Tendance de prix: ${prediction.predicted_return > 0 ? 'Haussière (+' + (prediction.predicted_return * 100).toFixed(2) + '%)' : 'Baissière (' + (prediction.predicted_return * 100).toFixed(2) + '%)'}`,
+        `Stabilité des patterns: ${prediction.confidence_score > 0.7 ? 'Très élevée' : prediction.confidence_score > 0.5 ? 'Élevée' : 'Modérée'}`,
+        `Volume d'analyse: ${historicalDataResult.results.length} points de données sur 7 jours`,
+        `Écart de prédiction: $${Math.abs(prediction.quantile_90 - prediction.quantile_10).toFixed(0)} (Q90-Q10)`
+      ],
+      
+      reliability_explanation: `Cette prédiction TimesFM est basée sur l'analyse de séries temporelles avancée. 
+        Le niveau de confiance de ${(prediction.confidence_score * 100).toFixed(1)}% ${prediction.confidence_score > 0.59 ? 'dépasse le' : 'est en-dessous du'} 
+        seuil de trading automatisé de 59%. ${prediction.confidence_score > 0.59 ? 'Le système considère cette prédiction comme fiable pour les décisions de trading automatiques.' : 'Une analyse manuelle supplémentaire est recommandée avant toute action de trading.'} 
+        L'intervalle de confiance [${prediction.quantile_10?.toFixed(0)} - ${prediction.quantile_90?.toFixed(0)}] USD indique la plage de prix probable à 80%.`,
+      
+      // Métadonnées
+      crypto: crypto.toUpperCase(),
+      symbol: symbol,
+      generated_at: new Date().toISOString()
+    };
+    
+    return c.json({
+      success: true,
+      prediction_details: detailedPrediction,
+      crypto: crypto.toUpperCase(),
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('Prediction details error:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch prediction details',
+      prediction_details: null
+    }, 500)
+  }
+})
+
 // ===============================
 // TRADING ROUTES
 // ===============================

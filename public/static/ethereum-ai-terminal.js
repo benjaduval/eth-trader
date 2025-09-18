@@ -372,7 +372,8 @@ class EthereumAITradingTerminal {
                         const bgColor = isHighConfidence ? 'bg-green-900/20' : 'bg-yellow-900/20';
                         
                         return `
-                            <div class="prediction-item flex items-center justify-between p-3 ${bgColor} rounded-lg border ${borderColor} hover:border-blue-500/50 transition-all">
+                            <div class="prediction-item flex items-center justify-between p-3 ${bgColor} rounded-lg border ${borderColor} hover:border-blue-500/50 transition-all cursor-pointer" 
+                                 onclick="app.showPredictionDetails('${pred.id || pred.timestamp}', '${this.currentCrypto}')">
                                 <div class="flex items-center space-x-4">
                                     <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">
                                         ${index + 1}
@@ -394,6 +395,9 @@ class EthereumAITradingTerminal {
                                     </div>
                                     <div class="text-xs text-gray-500">
                                         Range: $${pred.quantile_10?.toFixed(0) || 'N/A'} - $${pred.quantile_90?.toFixed(0) || 'N/A'}
+                                    </div>
+                                    <div class="text-xs text-blue-400 mt-1">
+                                        📋 Cliquez pour détails complets
                                     </div>
                                 </div>
                             </div>
@@ -879,6 +883,349 @@ class EthereumAITradingTerminal {
             
             // Recharger les données pour la nouvelle crypto (ceci va re-render l'interface avec les bons onglets actifs)
             await this.loadEthereumAITerminal();
+        }
+    }
+    
+    async showPredictionDetails(predictionId, crypto) {
+        try {
+            console.log(`🔍 Chargement des détails pour la prédiction ${predictionId} (${crypto})`);
+            
+            // Récupérer les détails complets de la prédiction
+            const response = await fetch(`${this.apiBase}/predictions/${predictionId}/details?crypto=${crypto}`);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Impossible de charger les détails');
+            }
+            
+            this.renderPredictionDetailsModal(result.prediction_details, crypto);
+            
+        } catch (error) {
+            console.error('❌ Erreur chargement détails prédiction:', error);
+            this.showError('Erreur lors du chargement des détails: ' + error.message);
+        }
+    }
+    
+    renderPredictionDetailsModal(details, crypto) {
+        // Créer le modal s'il n'existe pas
+        let modal = document.getElementById('prediction-details-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'prediction-details-modal';
+            document.body.appendChild(modal);
+        }
+        
+        const cryptoIcon = crypto === 'ETH' ? '⚡' : '₿';
+        const cryptoName = crypto === 'ETH' ? 'Ethereum' : 'Bitcoin';
+        
+        modal.innerHTML = `
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-gradient-to-br from-gray-900 to-purple-900/50 border border-purple-500/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                    <!-- Header -->
+                    <div class="sticky top-0 bg-gradient-to-r from-purple-900/80 to-blue-900/80 backdrop-blur-lg p-6 border-b border-purple-500/30 rounded-t-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl">
+                                    ${cryptoIcon}
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-bold text-white">Détails Prédiction TimesFM</h2>
+                                    <p class="text-purple-300">${cryptoName} - ${new Date(details.timestamp).toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <button onclick="app.closePredictionDetails()" 
+                                class="w-10 h-10 bg-red-500/20 hover:bg-red-500/40 border border-red-500/50 rounded-lg flex items-center justify-center text-red-300 hover:text-red-200 transition-all">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 space-y-6">
+                        ${this.generatePredictionDetailsContent(details, crypto)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden'; // Empêcher le scroll de la page
+        
+        console.log('✅ Modal des détails de prédiction affiché');
+    }
+    
+    generatePredictionDetailsContent(details, crypto) {
+        return `
+            <!-- Résultats TimesFM -->
+            <div class="prediction-results bg-gradient-to-br from-blue-900/30 to-purple-900/30 rounded-xl p-6 border border-blue-500/30">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <span class="mr-3">🧠</span>
+                    Résultats TimesFM
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="result-card bg-blue-900/40 p-4 rounded-lg border border-blue-400/30">
+                        <div class="text-blue-300 text-sm mb-2">Prix Prédit</div>
+                        <div class="text-3xl font-bold text-white">$${details.predicted_price?.toLocaleString() || 'N/A'}</div>
+                        <div class="text-xs text-blue-400 mt-1">Horizon: ${details.prediction_horizon || '24h'}</div>
+                    </div>
+                    
+                    <div class="result-card bg-green-900/40 p-4 rounded-lg border border-green-400/30">
+                        <div class="text-green-300 text-sm mb-2">Retour Attendu</div>
+                        <div class="text-2xl font-bold ${(details.predicted_return || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                            ${details.predicted_return ? ((details.predicted_return * 100).toFixed(2) + '%') : 'N/A'}
+                        </div>
+                        <div class="text-xs text-green-400 mt-1">Variation prévue</div>
+                    </div>
+                    
+                    <div class="result-card bg-purple-900/40 p-4 rounded-lg border border-purple-400/30">
+                        <div class="text-purple-300 text-sm mb-2">Confiance</div>
+                        <div class="text-2xl font-bold text-white flex items-center">
+                            ${details.confidence_score ? ((details.confidence_score * 100).toFixed(1) + '%') : 'N/A'}
+                            <span class="ml-2">${details.confidence_score > 0.59 ? '✅' : '⚠️'}</span>
+                        </div>
+                        <div class="text-xs text-purple-400 mt-1">Seuil: > 59%</div>
+                    </div>
+                </div>
+                
+                <!-- Intervalles de Confiance -->
+                <div class="confidence-intervals bg-black/30 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-white mb-3">Intervalles de Confiance</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="text-center">
+                            <div class="text-red-400 font-medium">Quantile 10% (Pessimiste)</div>
+                            <div class="text-xl font-bold text-white">$${details.quantile_10?.toLocaleString() || 'N/A'}</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-yellow-400 font-medium">Médiane (Scénario Central)</div>
+                            <div class="text-xl font-bold text-white">$${details.predicted_price?.toLocaleString() || 'N/A'}</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-green-400 font-medium">Quantile 90% (Optimiste)</div>
+                            <div class="text-xl font-bold text-white">$${details.quantile_90?.toLocaleString() || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Données d'Entrée TimesFM -->
+            <div class="input-data bg-gradient-to-br from-gray-900/50 to-indigo-900/30 rounded-xl p-6 border border-indigo-500/30">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <span class="mr-3">📊</span>
+                    Données d'Entrée TimesFM
+                </h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Données Historiques -->
+                    <div class="historical-data">
+                        <h4 class="text-lg font-semibold text-indigo-300 mb-3">Historique des Prix Utilisé</h4>
+                        <div class="bg-black/30 rounded-lg p-4 max-h-64 overflow-y-auto">
+                            ${details.input_historical_data ? this.generateHistoricalDataTable(details.input_historical_data) : 'Données historiques non disponibles'}
+                        </div>
+                    </div>
+                    
+                    <!-- Paramètres du Modèle -->
+                    <div class="model-params">
+                        <h4 class="text-lg font-semibold text-indigo-300 mb-3">Paramètres du Modèle</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Cryptomonnaie:</span>
+                                <span class="text-white font-medium">${crypto}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Horizon de prédiction:</span>
+                                <span class="text-white font-medium">${details.prediction_horizon || '24 heures'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Points de données:</span>
+                                <span class="text-white font-medium">${details.input_data_points || 'N/A'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Période d'analyse:</span>
+                                <span class="text-white font-medium">${details.analysis_period || '7 derniers jours'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Prix de base:</span>
+                                <span class="text-white font-medium">$${details.base_price?.toLocaleString() || 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Explication TimesFM -->
+            <div class="explanation bg-gradient-to-br from-green-900/30 to-teal-900/30 rounded-xl p-6 border border-green-500/30">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <span class="mr-3">🤖</span>
+                    Explication de la Prédiction TimesFM
+                </h3>
+                
+                <div class="space-y-4 text-sm">
+                    <div class="explanation-section">
+                        <h4 class="font-semibold text-green-300 mb-2">Analyse des Patterns:</h4>
+                        <p class="text-gray-200 leading-relaxed">
+                            ${details.pattern_analysis || `TimesFM a analysé ${details.input_data_points || 'les derniers'} points de données historiques pour ${crypto}, 
+                            identifiant des tendances et patterns de prix. Le modèle neural a détecté ${details.confidence_score > 0.7 ? 'des signaux forts' : 'des signaux modérés'} 
+                            dans les données, résultant en une confiance de ${(details.confidence_score * 100).toFixed(1)}%.`}
+                        </p>
+                    </div>
+                    
+                    <div class="explanation-section">
+                        <h4 class="font-semibold text-green-300 mb-2">Facteurs Clés Détectés:</h4>
+                        <ul class="text-gray-200 space-y-1 ml-4">
+                            ${details.key_factors ? details.key_factors.map(factor => `<li>• ${factor}</li>`).join('') : `
+                                <li>• Volatilité récente: ${Math.abs(details.predicted_return * 100).toFixed(1)}%</li>
+                                <li>• Tendance de prix: ${details.predicted_return > 0 ? 'Haussière' : 'Baissière'}</li>
+                                <li>• Stabilité des patterns: ${details.confidence_score > 0.6 ? 'Élevée' : 'Modérée'}</li>
+                                <li>• Volume d'analyse: ${details.input_data_points || 'Standard'} points de données</li>
+                            `}
+                        </ul>
+                    </div>
+                    
+                    <div class="explanation-section">
+                        <h4 class="font-semibold text-green-300 mb-2">Fiabilité de la Prédiction:</h4>
+                        <p class="text-gray-200 leading-relaxed">
+                            ${details.reliability_explanation || `Cette prédiction est basée sur l'analyse de series temporelles avec TimesFM. 
+                            Le niveau de confiance de ${(details.confidence_score * 100).toFixed(1)}% ${details.confidence_score > 0.59 ? 'dépasse' : 'est en-dessous du'} 
+                            seuil de trading de 59%, ${details.confidence_score > 0.59 ? 'suggérant une prédiction fiable' : 'nécessitant une analyse supplémentaire'} 
+                            pour les décisions de trading automatisées.`}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Recommandée -->
+            <div class="recommended-action bg-gradient-to-br from-orange-900/30 to-red-900/30 rounded-xl p-6 border border-orange-500/30">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <span class="mr-3">⚡</span>
+                    Action Recommandée
+                </h3>
+                
+                ${this.generateActionRecommendation(details, crypto)}
+            </div>
+        `;
+    }
+    
+    generateHistoricalDataTable(historicalData) {
+        if (!historicalData || historicalData.length === 0) {
+            return '<div class="text-gray-400 text-center py-4">Aucune donnée historique disponible</div>';
+        }
+        
+        return `
+            <div class="space-y-2">
+                <div class="grid grid-cols-4 gap-2 text-xs font-semibold text-gray-400 border-b border-gray-600 pb-2">
+                    <div>Timestamp</div>
+                    <div>Prix</div>
+                    <div>Volume</div>
+                    <div>Variation</div>
+                </div>
+                ${historicalData.slice(0, 10).map((point, index) => {
+                    const variation = index > 0 ? ((point.price - historicalData[index - 1].price) / historicalData[index - 1].price * 100) : 0;
+                    return `
+                        <div class="grid grid-cols-4 gap-2 text-xs text-gray-200 py-1 hover:bg-gray-700/30 rounded">
+                            <div>${new Date(point.timestamp).toLocaleTimeString()}</div>
+                            <div class="font-medium">$${point.price?.toLocaleString()}</div>
+                            <div>${point.volume ? (point.volume / 1e6).toFixed(1) + 'M' : 'N/A'}</div>
+                            <div class="${variation >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                ${variation.toFixed(2)}%
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+                ${historicalData.length > 10 ? `<div class="text-xs text-gray-400 text-center pt-2">... et ${historicalData.length - 10} autres points</div>` : ''}
+            </div>
+        `;
+    }
+    
+    generateActionRecommendation(details, crypto) {
+        const confidence = details.confidence_score || 0;
+        const predictedReturn = details.predicted_return || 0;
+        const isHighConfidence = confidence > 0.59;
+        
+        let action, actionColor, actionIcon, explanation;
+        
+        if (isHighConfidence && predictedReturn > 0.02) {
+            action = 'ACHAT RECOMMANDÉ';
+            actionColor = 'text-green-400 bg-green-900/30 border-green-500/50';
+            actionIcon = '📈';
+            explanation = `Avec une confiance de ${(confidence * 100).toFixed(1)}% et un retour prévu de +${(predictedReturn * 100).toFixed(2)}%, 
+            le système recommande un achat. Les conditions de trading automatique sont remplies (confiance > 59% et retour positif significatif).`;
+        } else if (isHighConfidence && predictedReturn < -0.02) {
+            action = 'VENTE RECOMMANDÉE';
+            actionColor = 'text-red-400 bg-red-900/30 border-red-500/50';
+            actionIcon = '📉';
+            explanation = `Avec une confiance de ${(confidence * 100).toFixed(1)}% et un retour prévu de ${(predictedReturn * 100).toFixed(2)}%, 
+            le système recommande une vente ou une position courte. La prédiction indique une baisse probable du prix.`;
+        } else if (isHighConfidence && Math.abs(predictedReturn) <= 0.02) {
+            action = 'MAINTENIR LA POSITION';
+            actionColor = 'text-yellow-400 bg-yellow-900/30 border-yellow-500/50';
+            actionIcon = '➡️';
+            explanation = `La prédiction indique une stabilité relative du prix (${(predictedReturn * 100).toFixed(2)}% de variation). 
+            Avec une confiance de ${(confidence * 100).toFixed(1)}%, le système recommande de maintenir les positions actuelles.`;
+        } else {
+            action = 'AUCUNE ACTION';
+            actionColor = 'text-gray-400 bg-gray-900/30 border-gray-500/50';
+            actionIcon = '⏸️';
+            explanation = `Confiance insuffisante (${(confidence * 100).toFixed(1)}% < 59%) pour déclencher une action automatique. 
+            Le système recommande d'attendre des signaux plus fiables avant de prendre position.`;
+        }
+        
+        return `
+            <div class="action-card ${actionColor} rounded-lg p-4 mb-4">
+                <div class="flex items-center space-x-3 mb-3">
+                    <span class="text-2xl">${actionIcon}</span>
+                    <div>
+                        <div class="text-xl font-bold">${action}</div>
+                        <div class="text-sm opacity-80">${crypto} - ${new Date().toLocaleString()}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="explanation-box bg-black/30 rounded-lg p-4">
+                <h4 class="font-semibold text-white mb-2">Justification de l'Action:</h4>
+                <p class="text-gray-200 text-sm leading-relaxed mb-4">${explanation}</p>
+                
+                <div class="risk-assessment grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                        <div class="font-medium text-orange-300 mb-1">Évaluation du Risque:</div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <span>Niveau de risque:</span>
+                                <span class="${confidence > 0.7 ? 'text-green-400' : confidence > 0.5 ? 'text-yellow-400' : 'text-red-400'}">
+                                    ${confidence > 0.7 ? 'Faible' : confidence > 0.5 ? 'Modéré' : 'Élevé'}
+                                </span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Volatilité attendue:</span>
+                                <span>${Math.abs(predictedReturn * 100).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="font-medium text-orange-300 mb-1">Paramètres de Gestion:</div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <span>Stop-Loss suggéré:</span>
+                                <span>${Math.abs(predictedReturn * 50).toFixed(1)}%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Take-Profit:</span>
+                                <span>${Math.abs(predictedReturn * 150).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    closePredictionDetails() {
+        const modal = document.getElementById('prediction-details-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restaurer le scroll
+            console.log('✅ Modal des détails fermé');
         }
     }
     
