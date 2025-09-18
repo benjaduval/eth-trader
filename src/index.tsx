@@ -731,7 +731,7 @@ app.post('/api/trading/check-exits', async (c) => {
 
 // Route pour servir l'interface web à la racine
 app.get('/', (c) => {
-  return c.html(`
+  return c.html(/*html*/`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1036,16 +1036,16 @@ app.get('/', (c) => {
 
         async function loadDashboard(crypto) {
             try {
-                console.log(\`Loading \${crypto} dashboard...\`);
+                console.log('Loading ' + crypto + ' dashboard...');
                 
                 // Load dashboard data
-                const response = await fetch(\`/api/dashboard?crypto=\${crypto}\`);
+                const response = await fetch('/api/dashboard?crypto=' + crypto);
                 const data = await response.json();
                 
                 if (data.success && data.dashboard) {
                     updateUI(crypto, data.dashboard);
                 } else {
-                    throw new Error(\`Failed to load \${crypto} dashboard: \${data.error || 'Unknown error'}\`);
+                    throw new Error('Failed to load ' + crypto + ' dashboard: ' + (data.error || 'Unknown error'));
                 }
                 
                 // Hide loading indicator
@@ -1053,7 +1053,7 @@ app.get('/', (c) => {
                 
             } catch (error) {
                 console.error('Dashboard loading error:', error);
-                showError(\`Failed to load \${crypto} dashboard: \${error.message}\`);
+                showError('Failed to load ' + crypto + ' dashboard: ' + error.message);
             }
         }
 
@@ -1061,57 +1061,55 @@ app.get('/', (c) => {
             const prefix = crypto.toLowerCase();
             
             // Update price
-            document.getElementById(\`\${prefix}-price\`).textContent = \`$\${dashboard.current_price.toLocaleString()}\`;
+            document.getElementById(prefix + '-price').textContent = '$' + dashboard.current_price.toLocaleString();
             
             // Update balance
-            document.getElementById(\`\${prefix}-balance\`).textContent = \`$\${dashboard.current_balance.toLocaleString()}\`;
+            document.getElementById(prefix + '-balance').textContent = '$' + dashboard.current_balance.toLocaleString();
             
             // Update positions
-            document.getElementById(\`\${prefix}-positions\`).textContent = dashboard.active_positions.length;
+            document.getElementById(prefix + '-positions').textContent = dashboard.active_positions.length;
             
             // Update predictions
-            const predictionsEl = document.getElementById(\`\${prefix}-predictions\`);
+            const predictionsEl = document.getElementById(prefix + '-predictions');
             if (dashboard.latest_predictions && dashboard.latest_predictions.length > 0) {
                 const pred = dashboard.latest_predictions[0];
-                predictionsEl.innerHTML = \`
-                    <div class="metric">
-                        <span class="metric-label">Predicted Price</span>
-                        <span class="metric-value">$\${pred.predicted_price.toFixed(2)}</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Expected Return</span>
-                        <span class="metric-value \${pred.predicted_return > 0 ? 'positive' : 'negative'}">
-                            \${(pred.predicted_return * 100).toFixed(2)}%
-                        </span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Confidence</span>
-                        <span class="metric-value">\${(pred.confidence_score * 100).toFixed(1)}%</span>
-                    </div>
-                \`;
+                predictionsEl.innerHTML = 
+                    '<div class="metric">' +
+                        '<span class="metric-label">Predicted Price</span>' +
+                        '<span class="metric-value">$' + pred.predicted_price.toFixed(2) + '</span>' +
+                    '</div>' +
+                    '<div class="metric">' +
+                        '<span class="metric-label">Expected Return</span>' +
+                        '<span class="metric-value ' + (pred.predicted_return > 0 ? 'positive' : 'negative') + '">' +
+                            (pred.predicted_return * 100).toFixed(2) + '%' +
+                        '</span>' +
+                    '</div>' +
+                    '<div class="metric">' +
+                        '<span class="metric-label">Confidence</span>' +
+                        '<span class="metric-value">' + (pred.confidence_score * 100).toFixed(1) + '%</span>' +
+                    '</div>';
             } else {
                 predictionsEl.innerHTML = '<p class="neutral">Generating prediction...</p>';
             }
             
             // Update metrics
-            const metricsEl = document.getElementById(\`\${prefix}-metrics\`);
+            const metricsEl = document.getElementById(prefix + '-metrics');
             if (dashboard.metrics) {
-                metricsEl.innerHTML = \`
-                    <div class="metric">
-                        <span class="metric-label">Win Rate</span>
-                        <span class="metric-value">\${((dashboard.metrics.win_rate || 0) * 100).toFixed(1)}%</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Total Trades</span>
-                        <span class="metric-value">\${dashboard.metrics.total_trades || 0}</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-label">Total PnL</span>
-                        <span class="metric-value \${(dashboard.metrics.total_pnl || 0) > 0 ? 'positive' : 'negative'}">
-                            \${(dashboard.metrics.total_pnl || 0).toFixed(2)}%
-                        </span>
-                    </div>
-                \`;
+                metricsEl.innerHTML = 
+                    '<div class="metric">' +
+                        '<span class="metric-label">Win Rate</span>' +
+                        '<span class="metric-value">' + ((dashboard.metrics.win_rate || 0) * 100).toFixed(1) + '%</span>' +
+                    '</div>' +
+                    '<div class="metric">' +
+                        '<span class="metric-label">Total Trades</span>' +
+                        '<span class="metric-value">' + (dashboard.metrics.total_trades || 0) + '</span>' +
+                    '</div>' +
+                    '<div class="metric">' +
+                        '<span class="metric-label">Total PnL</span>' +
+                        '<span class="metric-value ' + ((dashboard.metrics.total_pnl || 0) > 0 ? 'positive' : 'negative') + '">' +
+                            (dashboard.metrics.total_pnl || 0).toFixed(2) + '%' +
+                        '</span>' +
+                    '</div>';
             }
         }
 
