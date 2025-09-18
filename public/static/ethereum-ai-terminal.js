@@ -131,27 +131,59 @@ class EthereumAITradingTerminal {
             const ethTab = document.getElementById('eth-tab');
             const btcTab = document.getElementById('btc-tab');
             if (ethTab && btcTab) {
-                console.log('✅ Onglets ETH/BTC trouvés et visibles');
-                console.log('📍 Position ETH tab:', ethTab.getBoundingClientRect());
-                console.log('📍 Position BTC tab:', btcTab.getBoundingClientRect());
+                console.log('✅ Onglets ETH/BTC intégrés et visibles dans le rendu JavaScript');
+                console.log(`📍 Onglet actif: ${this.currentCrypto} - ETH visible: ${ethTab.offsetParent !== null}, BTC visible: ${btcTab.offsetParent !== null}`);
+                
+                // Vérifier que les événements sont bien attachés
+                console.log('🎯 Événements onclick:', {
+                    eth: ethTab.onclick ? 'OK' : 'MANQUANT',
+                    btc: btcTab.onclick ? 'OK' : 'MANQUANT'
+                });
             } else {
-                console.error('❌ Onglets ETH/BTC manquants !');
+                console.error('❌ Onglets ETH/BTC manquants après intégration JavaScript !');
+                console.log('🔍 Elements trouvés:', {
+                    ethTab: !!ethTab,
+                    btcTab: !!btcTab,
+                    container: !!document.querySelector('#dashboard .container')
+                });
             }
         }, 200);
     }
     
     generateEthereumAITerminalHTML(dashboard) {
         return `
+            <!-- ETH/BTC Navigation Tabs (Integrated into JavaScript Render) -->
+            <div class="crypto-navigation-header mb-6">
+                <div class="flex items-center justify-between bg-gradient-to-r from-gray-900/50 to-purple-900/30 backdrop-blur-lg rounded-xl p-4 border border-purple-500/20">
+                    <div class="flex items-center space-x-2">
+                        <button onclick="app.switchCrypto('ETH')" id="eth-tab" 
+                            class="crypto-tab ${this.currentCrypto === 'ETH' ? 'active bg-gradient-to-r from-purple-500/30 to-blue-500/30 border-purple-500/50 text-purple-200' : 'bg-gradient-to-r from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400'} backdrop-blur-sm px-6 py-3 rounded-xl border text-lg font-bold hover:border-purple-400 transition-all shadow-lg">
+                            ⚡ ETHEREUM
+                        </button>
+                        <button onclick="app.switchCrypto('BTC')" id="btc-tab" 
+                            class="crypto-tab ${this.currentCrypto === 'BTC' ? 'active bg-gradient-to-r from-purple-500/30 to-blue-500/30 border-purple-500/50 text-purple-200' : 'bg-gradient-to-r from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400'} backdrop-blur-sm px-6 py-3 rounded-xl border text-lg font-bold hover:border-purple-400 transition-all shadow-lg">
+                            ₿ BITCOIN
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span class="text-xs text-green-300">Live ${this.currentCrypto} Data</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Ethereum AI Trading Terminal Header -->
             <div class="ethereum-ai-header mb-8">
                 <div class="flex items-center justify-between bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-lg rounded-2xl p-6 border border-purple-500/30">
                     <div class="flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl">⚡</div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl">
+                            ${this.currentCrypto === 'ETH' ? '⚡' : '₿'}
+                        </div>
                         <div>
                             <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                                Ethereum AI Trading Terminal
+                                ${this.currentCrypto === 'ETH' ? 'Ethereum' : 'Bitcoin'} AI Trading Terminal
                             </h1>
-                            <p class="text-purple-300">Neural Network Powered Trading System</p>
+                            <p class="text-purple-300">Neural Network Powered Trading System - ${this.currentCrypto}</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
@@ -193,14 +225,17 @@ class EthereumAITradingTerminal {
     }
     
     generateETHMarketAnalysisSection(dashboard) {
+        const cryptoName = this.currentCrypto === 'ETH' ? 'Ethereum' : 'Bitcoin';
+        const cryptoIcon = this.currentCrypto === 'ETH' ? '📈' : '📊';
+        
         return `
             <div class="ethereum-market-analysis bg-gradient-to-br from-gray-900/80 to-purple-900/20 backdrop-blur-lg rounded-2xl p-6 border border-purple-500/30">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-xl font-bold text-white flex items-center">
-                        <span class="mr-3">📈</span>
-                        ETH Market Analysis
+                        <span class="mr-3">${cryptoIcon}</span>
+                        ${this.currentCrypto} Market Analysis
                     </h2>
-                    <div class="text-sm text-purple-300">Live Data</div>
+                    <div class="text-sm text-purple-300">Live ${cryptoName} Data</div>
                 </div>
                 
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -228,7 +263,7 @@ class EthereumAITradingTerminal {
                 
                 <!-- Price Chart Placeholder -->
                 <div class="chart-container bg-black/30 rounded-lg p-4 h-64 flex items-center justify-center border border-gray-600/30">
-                    <canvas id="ethPriceChart" class="w-full h-full"></canvas>
+                    <canvas id="cryptoPriceChart" class="w-full h-full"></canvas>
                 </div>
             </div>
         `;
@@ -744,13 +779,14 @@ class EthereumAITradingTerminal {
     }
     
     initializeETHPriceChart(dashboard) {
-        const canvas = document.getElementById('ethPriceChart');
+        const canvas = document.getElementById('cryptoPriceChart');
         if (!canvas) return;
         
         const ctx = canvas.getContext('2d');
         
         // Données de démonstration pour le graphique
-        const currentPrice = dashboard.current_price || 4600;
+        const defaultPrice = this.currentCrypto === 'ETH' ? 4600 : 98000; // Prix par défaut ETH vs BTC
+        const currentPrice = dashboard.current_price || defaultPrice;
         const hours = 24;
         const data = [];
         const labels = [];
@@ -770,15 +806,20 @@ class EthereumAITradingTerminal {
             this.priceChart.destroy();
         }
         
+        // Couleurs dynamiques selon la crypto
+        const chartColors = this.currentCrypto === 'ETH' 
+            ? { border: 'rgb(147, 51, 234)', background: 'rgba(147, 51, 234, 0.1)' }
+            : { border: 'rgb(255, 159, 64)', background: 'rgba(255, 159, 64, 0.1)' };
+        
         this.priceChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'ETH Price (USD)',
+                    label: `${this.currentCrypto} Price (USD)`,
                     data: data,
-                    borderColor: 'rgb(147, 51, 234)',
-                    backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                    borderColor: chartColors.border,
+                    backgroundColor: chartColors.background,
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4,
@@ -834,21 +875,9 @@ class EthereumAITradingTerminal {
             console.log(`🔄 Switching from ${this.currentCrypto} to ${newCrypto}`);
             this.currentCrypto = newCrypto;
             
-            // Mettre à jour l'apparence des onglets
-            document.querySelectorAll('.crypto-tab').forEach(tab => {
-                tab.classList.remove('active');
-                tab.classList.remove('from-purple-500/30', 'to-blue-500/30', 'border-purple-500/50', 'text-purple-200');
-                tab.classList.add('from-gray-500/20', 'to-gray-600/20', 'border-gray-500/30', 'text-gray-400');
-            });
+            console.log(`📊 Loading ${newCrypto} data and re-rendering interface...`);
             
-            const activeTab = document.getElementById(`${newCrypto.toLowerCase()}-tab`);
-            if (activeTab) {
-                activeTab.classList.add('active');
-                activeTab.classList.remove('from-gray-500/20', 'to-gray-600/20', 'border-gray-500/30', 'text-gray-400');
-                activeTab.classList.add('from-purple-500/30', 'to-blue-500/30', 'border-purple-500/50', 'text-purple-200');
-            }
-            
-            // Recharger les données pour la nouvelle crypto
+            // Recharger les données pour la nouvelle crypto (ceci va re-render l'interface avec les bons onglets actifs)
             await this.loadEthereumAITerminal();
         }
     }
