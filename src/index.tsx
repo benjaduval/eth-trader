@@ -1686,20 +1686,34 @@ app.post('/api/admin/run-automation', async (c) => {
 // PAGE PRINCIPALE
 // ===============================
 
-// Route pour servir l'interface web à la racine
-app.get('/', (c) => {
-  return c.html(`
+// Route pour servir l'interface web à la racine - Version standalone complète
+app.get('/', async (c) => {
+  // Lire le fichier standalone complet qui contient tout le JavaScript inline
+  try {
+    const fs = await import('fs/promises')
+    const standaloneContent = await fs.readFile('./public/ethereum-terminal-standalone.html', 'utf-8')
+    return c.html(standaloneContent)
+  } catch (error) {
+    console.warn('Standalone file not found, using embedded interface')
+    // Fallback: interface embedée complète
+    return c.html(`
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Crypto AI Trader Pro - Production</title>
-    <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
+            min-height: 100vh;
+            background-attachment: fixed;
+        }
+        
         .crypto-tab.active {
             background: linear-gradient(135deg, rgb(139 69 199 / 0.5), rgb(59 130 246 / 0.5)) !important;
             border-color: rgb(139 69 199 / 0.8) !important;
@@ -1707,65 +1721,64 @@ app.get('/', (c) => {
             box-shadow: 0 0 20px rgb(139 69 199 / 0.3);
             transform: scale(1.05);
         }
+        
         .crypto-tab:hover {
             transform: scale(1.02);
         }
-        .predictions-scroll::-webkit-scrollbar {
-            width: 6px;
+        
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .predictions-scroll::-webkit-scrollbar-track {
-            background: rgb(31 41 55 / 0.5);
-            border-radius: 3px;
+        
+        .neural-network-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.1;
+            background-image: radial-gradient(circle at 20% 50%, rgba(147, 51, 234, 0.3) 0%, transparent 50%),
+                              radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.3) 0%, transparent 50%);
+            animation: neural-pulse 8s ease-in-out infinite;
         }
-        .predictions-scroll::-webkit-scrollbar-thumb {
-            background: rgb(139 69 199 / 0.5);
-            border-radius: 3px;
-        }
-        .predictions-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgb(139 69 199 / 0.8);
+        
+        @keyframes neural-pulse {
+            0%, 100% { transform: scale(1); opacity: 0.1; }
+            50% { transform: scale(1.1); opacity: 0.15; }
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
-    <!-- Loading Screen -->
-    <div id="loading" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
-        <div class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-            <h2 class="text-xl font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">Ethereum AI Trading Terminal</h2>
-            <p class="text-gray-400">Initialisation du réseau neuronal...</p>
-        </div>
-    </div>
-
-    <!-- Neural Network Background -->
     <div class="neural-network-bg"></div>
-    <div class="matrix-bg"></div>
     
     <!-- Main Dashboard -->
-    <div id="dashboard" class="hidden min-h-screen bg-gradient-to-br from-gray-900/90 via-purple-900/90 to-blue-900/90 backdrop-blur-sm circuit-pattern">
+    <div class="min-h-screen">
         <!-- Header -->
-        <header class="bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-lg border-b border-purple-500/30 glass-morphism-strong">
+        <header class="glass-morphism border-b border-purple-500/30">
             <div class="container mx-auto px-6 py-4">
                 <div class="flex flex-col md:flex-row justify-between items-center">
                     <div class="flex items-center space-x-4 mb-4 md:mb-0">
-                        <div class="text-2xl eth-glow">⚡</div>
+                        <div class="text-2xl">⚡</div>
                         <div>
-                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
-                                Multi-Crypto AI Trading Terminal
+                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                                Multi-Crypto AI Trader Pro
                             </h1>
-                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System - ETH & BTC</p>
+                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System - Production</p>
                         </div>
                     </div>
                     
-                    <!-- Crypto Selector -->
+                    <!-- Crypto Tabs -->
                     <div class="flex items-center space-x-4">
-                        <!-- ETH/BTC Tabs -->
-                        <div class="flex items-center space-x-2">
-                            <button onclick="app.switchCrypto('ETH')" id="eth-tab" 
-                                class="crypto-tab active bg-gradient-to-r from-purple-500/30 to-blue-500/30 backdrop-blur-sm px-6 py-3 rounded-xl border border-purple-500/50 text-lg text-purple-200 font-bold hover:border-purple-400 transition-all shadow-lg">
+                        <div class="flex space-x-2">
+                            <button onclick="switchCrypto('ETH')" id="eth-tab" 
+                                class="crypto-tab active px-6 py-3 rounded-xl border border-purple-500/50 text-lg font-bold transition-all">
                                 ⚡ ETHEREUM
                             </button>
-                            <button onclick="app.switchCrypto('BTC')" id="btc-tab" 
-                                class="crypto-tab bg-gradient-to-r from-gray-500/20 to-gray-600/20 backdrop-blur-sm px-6 py-3 rounded-xl border border-gray-500/30 text-lg text-gray-400 font-bold hover:border-gray-400 transition-all shadow-lg">
+                            <button onclick="switchCrypto('BTC')" id="btc-tab" 
+                                class="crypto-tab px-6 py-3 rounded-xl border border-gray-500/30 text-lg font-bold transition-all">
                                 ₿ BITCOIN
                             </button>
                         </div>
@@ -1779,48 +1792,164 @@ app.get('/', (c) => {
         </header>
 
         <!-- Dashboard Content -->
-        <div class="container mx-auto px-6 py-8">
-            <!-- Le contenu sera injecté ici par JavaScript -->
+        <div class="container mx-auto px-6 py-8" id="dashboard-content">
+            <div class="text-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
+                <h2 class="text-xl font-semibold text-purple-300 mb-2">Initialisation de l'AI Terminal...</h2>
+                <p class="text-gray-400">Chargement des données de marché en temps réel...</p>
+            </div>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="/static/ethereum-ai-terminal.js"></script>
     <script>
-        // Initialiser l'Ethereum AI Trading Terminal
+        let currentCrypto = 'ETH';
+        
+        function switchCrypto(crypto) {
+            currentCrypto = crypto;
+            
+            // Update tab appearance
+            document.getElementById('eth-tab').classList.toggle('active', crypto === 'ETH');
+            document.getElementById('btc-tab').classList.toggle('active', crypto === 'BTC');
+            
+            // Load dashboard for selected crypto
+            loadDashboard(crypto);
+        }
+        
+        async function loadDashboard(crypto = 'ETH') {
+            const content = document.getElementById('dashboard-content');
+            
+            try {
+                // Load market data
+                const marketResponse = await fetch(\`/api/dashboard?crypto=\${crypto}\`);
+                const marketData = await marketResponse.json();
+                
+                // Load predictions
+                const predictionsResponse = await fetch(\`/api/predictions/latest?crypto=\${crypto}&limit=5\`);
+                const predictionsData = await predictionsResponse.json();
+                
+                // Render dashboard
+                content.innerHTML = \`
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Market Overview -->
+                        <div class="lg:col-span-2 glass-morphism rounded-xl p-6">
+                            <h2 class="text-xl font-bold text-purple-300 mb-4">
+                                📊 \${crypto} Market Overview
+                            </h2>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div class="text-center">
+                                    <p class="text-gray-400 text-sm">Prix Actuel</p>
+                                    <p class="text-2xl font-bold text-green-400">
+                                        $\${marketData.dashboard?.current_price?.toFixed(2) || 'Loading...'}
+                                    </p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-gray-400 text-sm">Balance</p>
+                                    <p class="text-xl font-bold text-blue-400">
+                                        $\${marketData.dashboard?.current_balance?.toFixed(2) || '10,000'}
+                                    </p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-gray-400 text-sm">Positions</p>
+                                    <p class="text-xl font-bold text-yellow-400">
+                                        \${marketData.dashboard?.active_positions?.length || 0}
+                                    </p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-gray-400 text-sm">Prédictions</p>
+                                    <p class="text-xl font-bold text-purple-400">
+                                        \${predictionsData.predictions?.length || 0}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Latest Predictions -->
+                        <div class="glass-morphism rounded-xl p-6">
+                            <h3 class="text-lg font-bold text-purple-300 mb-4">
+                                🤖 Prédictions TimesFM
+                            </h3>
+                            <div class="space-y-3">
+                                \${(predictionsData.predictions || []).slice(0, 3).map(pred => \`
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="text-sm font-medium text-gray-300">
+                                                \${new Date(pred.timestamp).toLocaleDateString()}
+                                            </span>
+                                            <span class="text-xs px-2 py-1 rounded-full \${
+                                                pred.confidence_score > 0.6 ? 'bg-green-500/20 text-green-400' :
+                                                pred.confidence_score > 0.4 ? 'bg-yellow-500/20 text-yellow-400' :
+                                                'bg-red-500/20 text-red-400'
+                                            }">
+                                                \${(pred.confidence_score * 100).toFixed(0)}%
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-sm text-gray-400">Prix prédit:</span>
+                                            <span class="font-bold \${pred.predicted_return > 0 ? 'text-green-400' : 'text-red-400'}">
+                                                $\${pred.predicted_price?.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-sm text-gray-400">Variation:</span>
+                                            <span class="font-bold \${pred.predicted_return > 0 ? 'text-green-400' : 'text-red-400'}">
+                                                \${pred.predicted_return > 0 ? '+' : ''}\${(pred.predicted_return * 100).toFixed(2)}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                \`).join('') || '<p class="text-gray-400 text-center py-4">Aucune prédiction disponible</p>'}
+                            </div>
+                        </div>
+                        
+                        <!-- Trading Status -->
+                        <div class="lg:col-span-3 glass-morphism rounded-xl p-6">
+                            <h3 class="text-lg font-bold text-purple-300 mb-4">
+                                💼 Status Trading - \${crypto}
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="text-center">
+                                    <div class="text-3xl mb-2">📈</div>
+                                    <p class="text-sm text-gray-400">Mode Trading</p>
+                                    <p class="font-bold text-blue-400">Paper Trading</p>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-3xl mb-2">🧠</div>
+                                    <p class="text-sm text-gray-400">IA Status</p>
+                                    <p class="font-bold text-green-400">TimesFM Active</p>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-3xl mb-2">⚡</div>
+                                    <p class="text-sm text-gray-400">Crypto Active</p>
+                                    <p class="font-bold text-purple-400">\${crypto}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                \`;
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                content.innerHTML = \`
+                    <div class="text-center py-12">
+                        <div class="text-6xl mb-4">⚠️</div>
+                        <h2 class="text-xl font-semibold text-red-400 mb-2">Erreur de chargement</h2>
+                        <p class="text-gray-400">Impossible de charger les données pour \${crypto}</p>
+                        <button onclick="loadDashboard('\${crypto}')" class="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
+                            Réessayer
+                        </button>
+                    </div>
+                \`;
+            }
+        }
+        
+        // Initialize dashboard on load
         document.addEventListener('DOMContentLoaded', () => {
-            // Animation de chargement progressive
-            const loadingSteps = [
-                { text: 'Initialisation des réseaux neuronaux...', delay: 500 },
-                { text: 'Connexion aux flux de données en temps réel...', delay: 1000 },
-                { text: 'Chargement des modèles TimesFM...', delay: 1500 },
-                { text: 'Configuration du terminal AI...', delay: 2000 }
-            ];
-            
-            const loadingText = document.querySelector('#loading p');
-            let currentStep = 0;
-            
-            const updateLoading = () => {
-                if (currentStep < loadingSteps.length) {
-                    setTimeout(() => {
-                        loadingText.textContent = loadingSteps[currentStep].text;
-                        currentStep++;
-                        updateLoading();
-                    }, loadingSteps[currentStep]?.delay || 500);
-                } else {
-                    setTimeout(() => {
-                        document.getElementById('loading').classList.add('hidden');
-                        document.getElementById('dashboard').classList.remove('hidden');
-                    }, 500);
-                }
-            };
-            
-            updateLoading();
+            setTimeout(() => loadDashboard('ETH'), 1000);
         });
     </script>
 </body>
 </html>
-  `)
+    `)
+  }
 })
 
 export default app
