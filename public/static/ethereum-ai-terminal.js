@@ -242,22 +242,45 @@ class EthereumAITradingTerminal {
                     <div class="metric-card bg-purple-900/30 p-4 rounded-lg border border-purple-500/20">
                         <div class="text-purple-300 text-sm">Current Price</div>
                         <div class="text-2xl font-bold text-white">$${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
-                        <div class="text-green-400 text-xs">+2.4%</div>
+                        <div class="${(dashboard.market_data?.market_data?.price_change_percentage_24h || 0) >= 0 ? 'text-green-400' : 'text-red-400'} text-xs">
+                            ${dashboard.market_data?.market_data?.price_change_percentage_24h ? 
+                                ((dashboard.market_data.market_data.price_change_percentage_24h >= 0 ? '+' : '') + 
+                                dashboard.market_data.market_data.price_change_percentage_24h.toFixed(2) + '%') : 'N/A'}
+                        </div>
                     </div>
                     <div class="metric-card bg-blue-900/30 p-4 rounded-lg border border-blue-500/20">
                         <div class="text-blue-300 text-sm">24h Volume</div>
-                        <div class="text-xl font-bold text-white">${dashboard.market_data?.volume_24h ? '$' + (dashboard.market_data.volume_24h / 1e9).toFixed(2) + 'B' : 'N/A'}</div>
-                        <div class="text-blue-400 text-xs">High Activity</div>
+                        <div class="text-xl font-bold text-white">
+                            ${dashboard.market_data?.market_data?.total_volume?.usd ? 
+                                '$' + (dashboard.market_data.market_data.total_volume.usd / 1e9).toFixed(2) + 'B' : 'N/A'}
+                        </div>
+                        <div class="text-blue-400 text-xs">
+                            ${dashboard.market_data?.market_data?.total_volume?.usd > 20e9 ? 'High Activity' : 
+                              dashboard.market_data?.market_data?.total_volume?.usd > 10e9 ? 'Normal Activity' : 'Low Activity'}
+                        </div>
                     </div>
                     <div class="metric-card bg-green-900/30 p-4 rounded-lg border border-green-500/20">
                         <div class="text-green-300 text-sm">Market Cap</div>
-                        <div class="text-xl font-bold text-white">${dashboard.market_data?.market_cap ? '$' + (dashboard.market_data.market_cap / 1e9).toFixed(0) + 'B' : 'N/A'}</div>
-                        <div class="text-green-400 text-xs">Rank #2</div>
+                        <div class="text-xl font-bold text-white">
+                            ${dashboard.market_data?.market_data?.market_cap?.usd ? 
+                                '$' + (dashboard.market_data.market_data.market_cap.usd / 1e9).toFixed(0) + 'B' : 'N/A'}
+                        </div>
+                        <div class="text-green-400 text-xs">
+                            Rank #${dashboard.market_data?.market_data?.market_cap_rank || (this.currentCrypto === 'ETH' ? '2' : '1')}
+                        </div>
                     </div>
                     <div class="metric-card bg-orange-900/30 p-4 rounded-lg border border-orange-500/20">
-                        <div class="text-orange-300 text-sm">Volatility</div>
-                        <div class="text-xl font-bold text-white">${dashboard.market_data?.price_change_percentage_24h ? Math.abs(dashboard.market_data.price_change_percentage_24h).toFixed(1) + '%' : 'N/A'}</div>
-                        <div class="text-orange-400 text-xs">Moderate</div>
+                        <div class="text-orange-300 text-sm">Volatilité 24h</div>
+                        <div class="text-xl font-bold text-white">
+                            ${dashboard.market_data?.market_data?.price_change_percentage_24h ? 
+                                Math.abs(dashboard.market_data.market_data.price_change_percentage_24h).toFixed(1) + '%' : 'N/A'}
+                        </div>
+                        <div class="text-orange-400 text-xs">
+                            ${dashboard.market_data?.market_data?.price_change_percentage_24h ? 
+                                (Math.abs(dashboard.market_data.market_data.price_change_percentage_24h) > 5 ? 'Très élevée' :
+                                 Math.abs(dashboard.market_data.market_data.price_change_percentage_24h) > 3 ? 'Élevée' :
+                                 Math.abs(dashboard.market_data.market_data.price_change_percentage_24h) > 1.5 ? 'Modérée' : 'Faible') : 'N/A'}
+                        </div>
                     </div>
                 </div>
                 
@@ -313,6 +336,9 @@ class EthereumAITradingTerminal {
                     </div>
                 </div>
                 
+                <!-- TimesFM Trend Analysis -->
+                ${this.generateTimesFMTrendAnalysis(latestPrediction)}
+                
                 <!-- Neural Network Activity -->
                 <div class="mt-4 p-4 bg-black/30 rounded-lg border border-gray-600/30">
                     <div class="text-sm text-gray-300 mb-2">Neural Network Activity:</div>
@@ -334,6 +360,126 @@ class EthereumAITradingTerminal {
                 
                 <!-- Liste complète des prédictions TimesFM -->
                 ${this.generateCompletePredictionsList(dashboard)}
+            </div>
+        `;
+    }
+    
+    generateTimesFMTrendAnalysis(latestPrediction) {
+        if (!latestPrediction) {
+            return `
+                <div class="mt-4 p-4 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                    <div class="text-center text-gray-400">
+                        <span class="text-lg">📊</span>
+                        <div class="mt-1 text-sm">Aucune prédiction disponible pour l'analyse de tendance</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Déterminer la tendance basée sur le retour prédit et la confiance
+        const predictedReturn = latestPrediction.predicted_return || 0;
+        const confidence = latestPrediction.confidence_score || 0;
+        
+        let trend, trendColor, trendIcon, trendExplanation, bgColor, borderColor;
+        
+        if (predictedReturn > 0.02 && confidence > 0.6) {
+            trend = 'BULLISH';
+            trendColor = 'text-green-400';
+            trendIcon = '📈';
+            trendExplanation = `TimesFM détecte une tendance haussière forte avec ${(predictedReturn * 100).toFixed(2)}% de croissance attendue et ${(confidence * 100).toFixed(1)}% de confiance.`;
+            bgColor = 'bg-green-900/20';
+            borderColor = 'border-green-500/40';
+        } else if (predictedReturn < -0.02 && confidence > 0.6) {
+            trend = 'BEARISH';
+            trendColor = 'text-red-400';
+            trendIcon = '📉';
+            trendExplanation = `TimesFM identifie une tendance baissière avec ${Math.abs(predictedReturn * 100).toFixed(2)}% de baisse attendue et ${(confidence * 100).toFixed(1)}% de confiance.`;
+            bgColor = 'bg-red-900/20';
+            borderColor = 'border-red-500/40';
+        } else if (Math.abs(predictedReturn) <= 0.02 && confidence > 0.5) {
+            trend = 'NEUTRAL';
+            trendColor = 'text-yellow-400';
+            trendIcon = '➡️';
+            trendExplanation = `TimesFM observe une tendance neutre avec une variation limitée de ${Math.abs(predictedReturn * 100).toFixed(2)}% et ${(confidence * 100).toFixed(1)}% de confiance.`;
+            bgColor = 'bg-yellow-900/20';
+            borderColor = 'border-yellow-500/40';
+        } else {
+            trend = 'INCERTAIN';
+            trendColor = 'text-gray-400';
+            trendIcon = '❓';
+            trendExplanation = `TimesFM ne peut pas déterminer une tendance claire. Confiance insuffisante (${(confidence * 100).toFixed(1)}%) pour une analyse fiable.`;
+            bgColor = 'bg-gray-900/20';
+            borderColor = 'border-gray-500/40';
+        }
+        
+        return `
+            <div class="timesfm-trend-analysis mt-4 ${bgColor} rounded-xl p-4 border ${borderColor}">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold text-white flex items-center">
+                        <span class="mr-2">🎯</span>
+                        Tendance TimesFM Détectée
+                    </h3>
+                    <div class="trend-indicator flex items-center space-x-2 px-3 py-1 rounded-lg ${bgColor} border ${borderColor}">
+                        <span class="text-xl">${trendIcon}</span>
+                        <span class="font-bold ${trendColor} text-lg">${trend}</span>
+                    </div>
+                </div>
+                
+                <div class="trend-explanation text-sm text-gray-200 mb-3">
+                    ${trendExplanation}
+                </div>
+                
+                <div class="trend-metrics grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div class="metric">
+                        <div class="text-gray-400">Signal Force:</div>
+                        <div class="font-medium ${trendColor}">
+                            ${confidence > 0.7 ? 'Très Fort' : confidence > 0.6 ? 'Fort' : confidence > 0.5 ? 'Modéré' : 'Faible'}
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="text-gray-400">Direction:</div>
+                        <div class="font-medium text-white">
+                            ${predictedReturn > 0.01 ? '↗️ Hausse' : predictedReturn < -0.01 ? '↘️ Baisse' : '➡️ Stabilité'}
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="text-gray-400">Amplitude:</div>
+                        <div class="font-medium text-white">
+                            ${Math.abs(predictedReturn * 100).toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="text-gray-400">Fiabilité:</div>
+                        <div class="font-medium ${confidence > 0.6 ? 'text-green-400' : confidence > 0.4 ? 'text-yellow-400' : 'text-red-400'}">
+                            ${(confidence * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                </div>
+                
+                ${confidence > 0.59 ? `
+                    <div class="trading-recommendation mt-3 p-3 bg-purple-900/30 rounded-lg border border-purple-500/30">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="text-purple-400">⚡</span>
+                            <span class="text-purple-300 font-medium text-sm">Recommandation Trading Automatique:</span>
+                        </div>
+                        <div class="text-xs text-purple-200">
+                            ${trend === 'BULLISH' ? '✅ Signal d\'ACHAT - Confiance suffisante pour trading automatique' :
+                              trend === 'BEARISH' ? '✅ Signal de VENTE - Confiance suffisante pour trading automatique' :
+                              trend === 'NEUTRAL' ? '⏸️ MAINTENIR positions - Attendre signal plus clair' :
+                              '⚠️ AUCUNE ACTION - Confiance insuffisante'}
+                        </div>
+                    </div>
+                ` : `
+                    <div class="trading-recommendation mt-3 p-3 bg-gray-900/30 rounded-lg border border-gray-500/30">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="text-gray-400">⏸️</span>
+                            <span class="text-gray-400 font-medium text-sm">Mode Manuel Recommandé:</span>
+                        </div>
+                        <div class="text-xs text-gray-300">
+                            ⚠️ Confiance < 59% - Analyse manuelle requise avant toute action de trading
+                        </div>
+                    </div>
+                `}
             </div>
         `;
     }
@@ -413,39 +559,209 @@ class EthereumAITradingTerminal {
             <div class="portfolio-section bg-gradient-to-br from-gray-900/80 to-green-900/20 backdrop-blur-lg rounded-2xl p-6 border border-green-500/30">
                 <h2 class="text-xl font-bold text-white flex items-center mb-6">
                     <span class="mr-3">💼</span>
-                    Portfolio
+                    Portfolio ${this.currentCrypto}
                 </h2>
                 
                 <div class="space-y-4">
+                    <!-- Balance Summary -->
                     <div class="balance-card bg-green-900/30 p-4 rounded-lg border border-green-500/20">
-                        <div class="text-green-300 text-sm">Total Balance</div>
+                        <div class="text-green-300 text-sm">Balance Total</div>
                         <div class="text-2xl font-bold text-white">
                             $${dashboard.current_balance?.toLocaleString() || '10,000'}
                         </div>
-                        <div class="text-green-400 text-xs">USD</div>
+                        <div class="text-green-400 text-xs">USD (Paper Trading)</div>
                     </div>
                     
-                    <div class="positions-summary">
-                        <div class="text-sm text-gray-300 mb-2">Active Positions:</div>
-                        <div class="space-y-2">
-                            ${dashboard.active_positions?.length ? dashboard.active_positions.map(position => `
-                                <div class="position-item bg-gray-800/50 p-3 rounded-lg border border-gray-600/30">
-                                    <div class="flex justify-between items-center">
-                                        <div class="text-white font-medium">${position.type?.toUpperCase() || 'N/A'}</div>
-                                        <div class="${position.pnl && position.pnl > 0 ? 'text-green-400' : 'text-red-400'}">
-                                            ${position.pnl ? (position.pnl > 0 ? '+' : '') + position.pnl.toFixed(2) + '%' : 'N/A'}
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-400 mt-1">
-                                        Entry: $${position.entry_price?.toLocaleString() || 'N/A'}
-                                    </div>
-                                </div>
-                            `).join('') : '<div class="text-gray-500 text-center py-4">No Active Positions</div>'}
-                        </div>
-                    </div>
+                    <!-- Active Positions - Enhanced -->
+                    ${this.generateActivePositionsSection(dashboard)}
+                    
+                    <!-- All Trades History -->
+                    ${this.generateTradesHistorySection(dashboard)}
                 </div>
             </div>
         `;
+    }
+    
+    generateActivePositionsSection(dashboard) {
+        const activePositions = dashboard.active_positions || [];
+        
+        return `
+            <div class="active-positions">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold text-white flex items-center">
+                        <span class="mr-2">🚀</span>
+                        Positions Ouvertes (${activePositions.length})
+                    </h3>
+                    ${activePositions.length > 0 ? `<div class="text-xs text-green-300">● EN COURS</div>` : ''}
+                </div>
+                
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    ${activePositions.length ? activePositions.map(position => `
+                        <div class="position-item bg-green-900/20 p-4 rounded-lg border-l-4 border-green-400 hover:bg-green-900/30 transition-all cursor-pointer"
+                             onclick="app.showTradeDetails('${position.id}', 'active')">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-white font-bold text-lg">${position.side?.toUpperCase() || 'LONG'}</span>
+                                        <span class="text-green-300 text-sm">${position.symbol || this.currentCrypto + 'USDT'}</span>
+                                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-400">
+                                        Ouvert: ${new Date(position.opened_at || position.timestamp).toLocaleDateString()} ${new Date(position.opened_at || position.timestamp).toLocaleTimeString()}
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-sm font-medium text-white">
+                                        Qté: ${position.quantity?.toFixed(4) || 'N/A'}
+                                    </div>
+                                    <div class="text-xs text-gray-400">
+                                        Entry: $${position.entry_price?.toLocaleString() || 'N/A'}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-between items-center">
+                                <div class="text-xs">
+                                    <span class="text-gray-400">PnL: </span>
+                                    <span class="${(position.net_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'} font-medium">
+                                        ${position.net_pnl ? ((position.net_pnl >= 0 ? '+' : '') + position.net_pnl.toFixed(2)) : '0.00'}$
+                                    </span>
+                                </div>
+                                <div class="text-xs text-blue-400">
+                                    📊 Cliquez pour détails
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="no-positions text-center py-6 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                            <div class="text-gray-400">
+                                <span class="text-2xl block mb-2">📝</span>
+                                <div class="text-sm">Aucune position ouverte pour ${this.currentCrypto}</div>
+                                <div class="text-xs mt-1">Les nouveaux trades apparaîtront ici</div>
+                            </div>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+    
+    generateTradesHistorySection(dashboard) {
+        const recentTrades = dashboard.recent_trades || [];
+        const allTrades = [...(dashboard.active_positions || []), ...recentTrades];
+        
+        // Trier par date décroissante
+        allTrades.sort((a, b) => new Date(b.timestamp || b.opened_at).getTime() - new Date(a.timestamp || a.opened_at).getTime());
+        
+        return `
+            <div class="trades-history">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold text-white flex items-center">
+                        <span class="mr-2">📈</span>
+                        Historique Complet (${allTrades.length})
+                    </h3>
+                    <div class="text-xs text-purple-300">${this.currentCrypto} Trades</div>
+                </div>
+                
+                <div class="trades-list max-h-64 overflow-y-auto space-y-2">
+                    ${allTrades.length ? allTrades.map(trade => {
+                        const isActive = trade.status === 'open' || !trade.closed_at;
+                        const isProfit = (trade.net_pnl || 0) >= 0;
+                        
+                        return `
+                            <div class="trade-item p-3 rounded-lg border cursor-pointer hover:border-blue-500/50 transition-all
+                                        ${isActive ? 'bg-green-900/20 border-green-500/30' : isProfit ? 'bg-blue-900/20 border-blue-500/30' : 'bg-red-900/20 border-red-500/30'}"
+                                 onclick="app.showTradeDetails('${trade.id}', '${isActive ? 'active' : 'closed'}')">
+                                
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="${isActive ? 'text-green-400' : isProfit ? 'text-blue-400' : 'text-red-400'} font-bold">
+                                            ${trade.side?.toUpperCase() || 'LONG'}
+                                        </span>
+                                        <span class="text-gray-300 text-sm">${trade.symbol || this.currentCrypto + 'USDT'}</span>
+                                        ${isActive ? '<span class="text-green-400 text-xs">● OUVERT</span>' : '<span class="text-gray-400 text-xs">● FERMÉ</span>'}
+                                    </div>
+                                    <div class="${isActive ? 'text-green-400' : isProfit ? 'text-green-400' : 'text-red-400'} text-sm font-medium">
+                                        ${trade.net_pnl ? ((trade.net_pnl >= 0 ? '+' : '') + trade.net_pnl.toFixed(2) + '$') : '0.00$'}
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4 text-xs">
+                                    <div>
+                                        <div class="text-gray-400">Entry: <span class="text-white">$${trade.entry_price?.toLocaleString() || 'N/A'}</span></div>
+                                        <div class="text-gray-400">Qté: <span class="text-white">${trade.quantity?.toFixed(4) || 'N/A'}</span></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-400">
+                                            ${isActive ? 'Ouvert:' : 'Exit:'} 
+                                            <span class="text-white">
+                                                ${isActive ? 
+                                                    new Date(trade.opened_at || trade.timestamp).toLocaleDateString() :
+                                                    (trade.exit_price ? '$' + trade.exit_price.toLocaleString() : 'N/A')
+                                                }
+                                            </span>
+                                        </div>
+                                        <div class="text-gray-400">
+                                            ${isActive ? 'Durée:' : 'Fermé:'} 
+                                            <span class="text-white text-xs">
+                                                ${isActive ? 
+                                                    this.calculateDuration(trade.opened_at || trade.timestamp) :
+                                                    (trade.closed_at ? new Date(trade.closed_at).toLocaleDateString() : 'N/A')
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-2 text-xs text-blue-400 text-center">
+                                    📋 Cliquez pour détails complets
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : `
+                        <div class="no-trades text-center py-6 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                            <div class="text-gray-400">
+                                <span class="text-2xl block mb-2">📊</span>
+                                <div class="text-sm">Aucun historique de trade pour ${this.currentCrypto}</div>
+                                <div class="text-xs mt-1">Générez des signaux de trading pour commencer</div>
+                            </div>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+    
+    calculateDuration(startTime) {
+        const now = new Date();
+        const start = new Date(startTime);
+        const diff = now.getTime() - start.getTime();
+        
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (hours > 24) {
+            const days = Math.floor(hours / 24);
+            return `${days}j ${hours % 24}h`;
+        } else if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else {
+            return `${minutes}m`;
+        }
+    }
+    
+    async showTradeDetails(tradeId, tradeType) {
+        try {
+            console.log(`🔍 Affichage des détails du trade ${tradeId} (${tradeType})`);
+            
+            // Pour l'instant, afficher une alerte simple
+            // TODO: Implémenter un modal détaillé comme pour les prédictions
+            alert(`Détails du trade #${tradeId}\nType: ${tradeType}\n\nFonctionnalité en cours de développement...`);
+            
+        } catch (error) {
+            console.error('❌ Erreur affichage détails trade:', error);
+            this.showError('Erreur lors de l\'affichage des détails du trade');
+        }
     }
     
     generateAIStatusSection(dashboard) {

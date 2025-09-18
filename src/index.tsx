@@ -356,16 +356,16 @@ app.get('/api/predictions/:id/details', async (c) => {
       }, 404)
     }
     
-    // Récupérer les données historiques utilisées (simulation basée sur la période)
+    // Récupérer les données historiques utilisées (étendu pour TimesFM - minimum 400 points)
     const predictionTime = new Date(prediction.timestamp);
-    const analysisStartTime = new Date(predictionTime.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 jours avant
+    const analysisStartTime = new Date(predictionTime.getTime() - (21 * 24 * 60 * 60 * 1000)); // 21 jours avant pour plus de données
     
     const historicalDataResult = await c.env.DB.prepare(`
       SELECT timestamp, close_price as price, volume 
       FROM market_data 
       WHERE symbol = ? AND timestamp >= ? AND timestamp < ?
       ORDER BY timestamp DESC
-      LIMIT 50
+      LIMIT 500
     `).bind(symbol, analysisStartTime.toISOString(), predictionTime.toISOString()).all();
     
     // Récupérer les données de marché actuelles pour contextualiser
@@ -387,7 +387,7 @@ app.get('/api/predictions/:id/details', async (c) => {
       // Paramètres du modèle et contexte
       base_price: currentPrice,
       prediction_horizon: `${prediction.horizon_hours || 24} heures`,
-      analysis_period: '7 derniers jours',
+      analysis_period: '21 derniers jours (optimisé TimesFM)',
       input_data_points: historicalDataResult.results.length,
       
       // Données historiques utilisées
@@ -407,7 +407,8 @@ app.get('/api/predictions/:id/details', async (c) => {
         `Volatilité récente: ${Math.abs(prediction.predicted_return * 100).toFixed(1)}%`,
         `Tendance de prix: ${prediction.predicted_return > 0 ? 'Haussière (+' + (prediction.predicted_return * 100).toFixed(2) + '%)' : 'Baissière (' + (prediction.predicted_return * 100).toFixed(2) + '%)'}`,
         `Stabilité des patterns: ${prediction.confidence_score > 0.7 ? 'Très élevée' : prediction.confidence_score > 0.5 ? 'Élevée' : 'Modérée'}`,
-        `Volume d'analyse: ${historicalDataResult.results.length} points de données sur 7 jours`,
+        `Volume d'analyse TimesFM: ${historicalDataResult.results.length} points de données (optimisé 400+)`,
+        `Période d'analyse: 21 jours pour robustesse TimesFM`,
         `Écart de prédiction: $${Math.abs(prediction.quantile_90 - prediction.quantile_10).toFixed(0)} (Q90-Q10)`
       ],
       

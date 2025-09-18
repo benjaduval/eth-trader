@@ -61,16 +61,17 @@ export class TimesFMPredictor {
         timestamp: new Date().toISOString()
       });
 
-      // Récupérer les données historiques récentes
-      const historicalData = await this.getHistoricalData(normalizedSymbol, 168); // 7 jours
+      // Récupérer les données historiques récentes (étendu pour TimesFM)
+      const historicalData = await this.getHistoricalData(normalizedSymbol, 504); // 21 jours pour minimum 400+ points
       
-      if (historicalData.length < 20) {
-        await this.logTimesFMCall('Insufficient historical data', {
+      if (historicalData.length < 100) {
+        await this.logTimesFMCall('Insufficient historical data for TimesFM', {
           dataPoints: historicalData.length,
-          required: 20,
+          required: 100,
+          recommended: 400,
           fallback: 'neutral_prediction'
         });
-        // Pas assez de données, retourner une prédiction neutre
+        // Pas assez de données pour TimesFM, retourner une prédiction neutre
         return this.createNeutralPrediction(normalizedSymbol, currentPrice, horizonHours);
       }
 
