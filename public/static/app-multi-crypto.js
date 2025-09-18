@@ -1,26 +1,23 @@
 /**
- * Ultra-Futuristic Multi-Crypto Trader Dashboard
- * Advanced Real-time Trading Interface with AI Predictions
- * Support ETH & BTC with TimesFM Neural Network Analysis
+ * Frontend JavaScript pour Multi-Crypto Trader Dashboard
+ * Interface de trading en temps réel avec métriques et graphiques complets
+ * Support ETH et BTC avec TimesFM Analysis
  */
 
 class CryptoTraderApp {
     constructor() {
         this.apiBase = '/api';
-        this.refreshInterval = 30000; // 30 seconds
+        this.refreshInterval = 30000; // 30 secondes
         this.priceChart = null;
         this.isAutoRefreshEnabled = true;
-        this.currentCrypto = 'ETH'; // Current crypto (ETH default)
+        this.currentCrypto = 'ETH'; // Crypto actuelle (ETH par défaut)
         this.supportedCryptos = ['ETH', 'BTC'];
-        this.lastPrices = {}; // Price change tracking
-        this.notifications = []; // System notifications
-        this.dashboardData = null; // Cache dashboard data
         
         this.init();
     }
 
     async init() {
-        console.log('🚀 Initializing Ultra-Futuristic Multi-Crypto Dashboard...');
+        console.log('🚀 Initialisation Multi-Crypto Trader Dashboard...');
         
         try {
             await this.checkHealth();
@@ -28,14 +25,11 @@ class CryptoTraderApp {
             await this.loadDashboard();
             this.setupAutoRefresh();
             this.setupEventListeners();
-            this.initializeParticleEffects();
             
-            console.log('✅ Ultra-Futuristic Dashboard initialized successfully');
-            this.showNotification('🚀 Dashboard Ready - AI Trading Active', 'success');
+            console.log('✅ Dashboard initialisé avec succès');
         } catch (error) {
-            console.error('❌ Initialization error:', error);
-            this.showError('Connection error - Retrying...');
-            setTimeout(() => this.init(), 5000);
+            console.error('❌ Erreur initialisation:', error);
+            this.showError('Erreur de connexion au serveur');
         }
     }
 
@@ -101,171 +95,159 @@ class CryptoTraderApp {
 
     renderDashboard(data) {
         const container = document.querySelector('#dashboard .container');
-        this.dashboardData = data; // Cache data
-        
-        // Store last price for change detection
-        if (data.current_price && this.lastPrices[this.currentCrypto]) {
-            const change = data.current_price - this.lastPrices[this.currentCrypto];
-            data.priceChange = change;
-            data.priceChangePercent = (change / this.lastPrices[this.currentCrypto]) * 100;
-        }
-        this.lastPrices[this.currentCrypto] = data.current_price;
         
         container.innerHTML = `
-            <!-- Crypto Selector & Quick Actions -->
+            <!-- Sélecteur de crypto -->
+            <div class="mb-6">
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-bold flex items-center">
+                            <i class="fas fa-coins mr-2 text-yellow-400"></i>
+                            Multi-Crypto Trading Dashboard
+                        </h2>
+                        <div class="flex items-center space-x-4">
+                            <label class="text-sm text-gray-300">Crypto:</label>
+                            <select id="cryptoSelector" class="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white focus:border-blue-500">
+                                ${this.supportedCryptos.map(crypto => 
+                                    `<option value="${crypto}" ${crypto === this.currentCrypto ? 'selected' : ''}>${crypto}</option>`
+                                ).join('')}
+                            </select>
+                            <button onclick="app.compareCryptos()" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
+                                <i class="fas fa-balance-scale mr-1"></i>Comparer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header avec métriques principales -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                ${this.renderMetricCard(`Prix ${this.currentCrypto}`, `$${data.current_price?.toFixed(2) || '0'}`, 'fas fa-coins', 'text-yellow-400')}
+                ${this.renderMetricCard('Balance', `$${data.current_balance?.toFixed(2) || '10000'}`, 'fas fa-wallet', 'text-green-400')}
+                ${this.renderMetricCard('Positions', data.active_positions?.length || 0, 'fas fa-chart-line', 'text-blue-400')}
+                ${this.renderMetricCard('Win Rate', `${((data.metrics?.win_rate || 0) * 100).toFixed(1)}%`, 'fas fa-trophy', 'text-purple-400')}
+            </div>
+
+            <!-- Actions rapides -->
             <div class="mb-8">
-                <div class="glass-card p-6 neon-border">
-                    <div class="flex flex-col lg:flex-row justify-between items-center space-y-4 lg:space-y-0">
-                        <div class="flex items-center space-x-6">
-                            <h2 class="text-2xl font-bold neon-text text-blue-400 flex items-center">
-                                <i class="fas fa-robot mr-3"></i>
-                                AI Trading Control Center
-                            </h2>
-                            <div class="flex items-center space-x-3">
-                                <label class="text-sm text-gray-300 font-medium">Active Crypto:</label>
-                                <select id="cryptoSelector" class="bg-gray-800 border border-blue-500/30 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
-                                    ${this.supportedCryptos.map(crypto => 
-                                        `<option value="${crypto}" ${crypto === this.currentCrypto ? 'selected' : ''}>${crypto} ${crypto === 'ETH' ? '📊' : '₿'}</option>`
-                                    ).join('')}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="flex flex-wrap gap-3">
-                            <button onclick="app.generateSignal()" class="holo-btn">
-                                <i class="fas fa-magic mr-2"></i>Generate AI Signal
-                            </button>
-                            <button onclick="app.compareCryptos()" class="holo-btn">
-                                <i class="fas fa-balance-scale mr-2"></i>Compare
-                            </button>
-                            <button onclick="app.toggleAutoRefresh()" class="holo-btn" id="autoRefreshBtn">
-                                <i class="fas fa-${this.isAutoRefreshEnabled ? 'pause' : 'play'} mr-2"></i>Auto: ${this.isAutoRefreshEnabled ? 'ON' : 'OFF'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main Metrics Grid -->
-            <div class="dashboard-grid mb-8">
-                ${this.renderAdvancedMetricCard('Current Price', data.current_price, 'fas fa-coins', 'text-yellow-400', data.priceChange)}
-                ${this.renderAdvancedMetricCard('Portfolio Balance', data.current_balance, 'fas fa-wallet', 'text-green-400')}
-                ${this.renderAdvancedMetricCard('Active Positions', data.active_positions?.length || 0, 'fas fa-chart-line', 'text-blue-400')}
-                ${this.renderAdvancedMetricCard('AI Win Rate', ((data.metrics?.win_rate || 0) * 100).toFixed(1) + '%', 'fas fa-brain', 'text-purple-400')}
-            </div>
-
-            <!-- Advanced Analytics Section -->
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-                <!-- TimesFM Predictions -->
-                <div class="glass-card p-6 pulse-slow">
-                    <h3 class="text-xl font-bold mb-4 flex items-center neon-text text-purple-400">
-                        <i class="fas fa-brain mr-3"></i>
-                        TimesFM AI Predictions
-                    </h3>
-                    <div id="predictions-container" class="space-y-4">
-                        ${this.renderAdvancedPredictions(data.latest_predictions || [])}
-                    </div>
-                    <button onclick="app.generatePrediction()" class="mt-4 w-full holo-btn">
-                        <i class="fas fa-sync mr-2"></i>Generate New Prediction
-                    </button>
-                </div>
-
-                <!-- Live Chart -->
-                <div class="glass-card p-6">
-                    <h3 class="text-xl font-bold mb-4 flex items-center neon-text text-green-400">
-                        <i class="fas fa-chart-area mr-3"></i>
-                        Live ${this.currentCrypto} Chart
-                    </h3>
-                    <div class="chart-container h-64">
-                        <canvas id="priceChart" class="w-full h-full"></canvas>
-                    </div>
-                    <div class="mt-4 grid grid-cols-3 gap-2 text-sm">
-                        <div class="text-center p-2 bg-gray-800/50 rounded">
-                            <div class="text-gray-400">24h High</div>
-                            <div class="text-green-400 font-bold">${data.market_data?.high_24h?.toFixed(2) || 'N/A'}</div>
-                        </div>
-                        <div class="text-center p-2 bg-gray-800/50 rounded">
-                            <div class="text-gray-400">24h Low</div>
-                            <div class="text-red-400 font-bold">${data.market_data?.low_24h?.toFixed(2) || 'N/A'}</div>
-                        </div>
-                        <div class="text-center p-2 bg-gray-800/50 rounded">
-                            <div class="text-gray-400">Volume</div>
-                            <div class="text-blue-400 font-bold">${data.market_data?.volume_24h ? (data.market_data.volume_24h / 1e6).toFixed(1) + 'M' : 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- System Status & Logs -->
-                <div class="glass-card p-6">
-                    <h3 class="text-xl font-bold mb-4 flex items-center neon-text text-orange-400">
-                        <i class="fas fa-server mr-3"></i>
-                        System Status & Logs
-                    </h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
-                            <span class="text-sm">Market Data Feed</span>
-                            <span class="status-online text-sm">● LIVE</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
-                            <span class="text-sm">TimesFM Engine</span>
-                            <span class="status-online text-sm">● ACTIVE</span>
-                        </div>
-                        <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-lg">
-                            <span class="text-sm">Auto Trading</span>
-                            <span class="status-online text-sm">● ENABLED</span>
-                        </div>
-                    </div>
-                    <button onclick="app.viewLogs()" class="mt-4 w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
-                        <i class="fas fa-list mr-2"></i>View System Logs
-                    </button>
-                </div>
-            </div>
-
-            <!-- Positions & Trading History -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <!-- Active Positions -->
-                <div class="glass-card p-6">
-                    <h3 class="text-xl font-bold mb-4 flex items-center neon-text text-blue-400">
-                        <i class="fas fa-chart-line mr-3"></i>
-                        Active Positions (${data.active_positions?.length || 0})
-                    </h3>
-                    <div id="positions-container" class="space-y-3">
-                        ${this.renderAdvancedPositions(data.active_positions || [])}
-                    </div>
-                    ${data.active_positions?.length > 0 ? `
-                        <button onclick="app.closeAllPositions()" class="mt-4 w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors">
-                            <i class="fas fa-times-circle mr-2"></i>Close All Positions
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-bolt mr-2 text-yellow-400"></i>
+                        Actions Rapides
+                    </h2>
+                    <div class="flex flex-wrap gap-4">
+                        <button onclick="app.generateSignal()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors">
+                            <i class="fas fa-magic mr-2"></i>Générer Signal ${this.currentCrypto}
                         </button>
-                    ` : ''}
-                </div>
-
-                <!-- Recent Trades -->
-                <div class="glass-card p-6">
-                    <h3 class="text-xl font-bold mb-4 flex items-center neon-text text-cyan-400">
-                        <i class="fas fa-history mr-3"></i>
-                        Recent Trades
-                    </h3>
-                    <div class="futuristic-table">
-                        ${this.renderAdvancedTrades(data.recent_trades || [])}
+                        <button onclick="app.refreshData()" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
+                            <i class="fas fa-sync mr-2"></i>Actualiser
+                        </button>
+                        <button onclick="app.toggleAutoRefresh()" class="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors" id="autoRefreshBtn">
+                            <i class="fas fa-pause mr-2"></i>Auto-Refresh: ON
+                        </button>
+                        <button onclick="app.switchCrypto('${this.currentCrypto === 'ETH' ? 'BTC' : 'ETH}')" class="px-6 py-3 bg-orange-600 hover:bg-orange-700 rounded-lg font-medium transition-colors">
+                            <i class="fas fa-exchange-alt mr-2"></i>Passer à ${this.currentCrypto === 'ETH' ? 'BTC' : 'ETH'}
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Performance Analytics -->
-            <div class="glass-card p-6 mb-8">
-                <h3 class="text-xl font-bold mb-6 flex items-center neon-text text-indigo-400">
-                    <i class="fas fa-analytics mr-3"></i>
-                    Performance Analytics Dashboard
-                </h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
-                    ${this.renderPerformanceMetrics(data.metrics || {})}
+            <!-- Graphique des prix et prédictions -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-chart-area mr-2 text-green-400"></i>
+                        Prix ${this.currentCrypto} (24h)
+                    </h2>
+                    <div class="relative h-64">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-brain mr-2 text-purple-400"></i>
+                        Prédictions TimesFM - ${this.currentCrypto}
+                    </h2>
+                    <div id="predictions">
+                        ${this.renderPredictions(data.latest_predictions || [])}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Positions ouvertes et historique -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-chart-line mr-2 text-blue-400"></i>
+                        Positions Ouvertes
+                    </h2>
+                    <div id="positions">
+                        ${this.renderPositions(data.active_positions || [])}
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-history mr-2 text-orange-400"></i>
+                        Trades Récents
+                    </h2>
+                    <div id="recent-trades">
+                        ${this.renderRecentTrades(data.recent_trades || [])}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs système -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-server mr-2 text-cyan-400"></i>
+                        Logs Système
+                    </h2>
+                    <div id="system-logs" class="h-64 overflow-y-auto">
+                        ${this.renderSystemLogs()}
+                    </div>
+                    <button onclick="app.loadSystemLogs()" class="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-sm">
+                        <i class="fas fa-refresh mr-1"></i>Actualiser Logs
+                    </button>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-brain mr-2 text-indigo-400"></i>
+                        Logs TimesFM
+                    </h2>
+                    <div id="timesfm-logs" class="h-64 overflow-y-auto">
+                        ${this.renderTimesFMLogs()}
+                    </div>
+                    <button onclick="app.loadTimesFMLogs()" class="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm">
+                        <i class="fas fa-refresh mr-1"></i>Actualiser Logs AI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Métriques détaillées -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-analytics mr-2 text-indigo-400"></i>
+                    Métriques de Performance (30j)
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    ${this.renderDetailedMetrics(data.metrics || {})}
                 </div>
             </div>
         `;
 
-        // Setup interactions
+        // Setup du sélecteur de crypto après le rendu
         this.setupCryptoSelector();
-        this.loadAdvancedChart(data);
-        this.updateRealTimeElements();
+        
+        // Charger le graphique
+        this.loadPriceChart();
+        
+        // Charger les logs
+        this.loadSystemLogs();
+        this.loadTimesFMLogs();
     }
 
     setupCryptoSelector() {
@@ -369,185 +351,20 @@ class CryptoTraderApp {
         await this.loadDashboard();
     }
 
-    // Ultra-futuristic rendering methods with advanced animations
-    
-    renderAdvancedMetricCard(title, value, icon, colorClass, change = null) {
-        const changeIndicator = change !== null ? (
-            change > 0 ? `<span class="price-up text-xs ml-2">+${change.toFixed(2)}</span>` :
-            change < 0 ? `<span class="price-down text-xs ml-2">${change.toFixed(2)}</span>` :
-            `<span class="price-neutral text-xs ml-2">±0.00</span>`
-        ) : '';
-
-        const formattedValue = typeof value === 'number' && value >= 1000 ? 
-            value >= 1000000 ? `$${(value / 1000000).toFixed(2)}M` : `$${(value / 1000).toFixed(2)}K` : 
-            typeof value === 'number' ? `$${value.toFixed(2)}` : value;
-
+    renderMetricCard(title, value, icon, colorClass) {
         return `
-            <div class="metric-card glass-card pulse-slow">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="p-3 ${colorClass} bg-opacity-20 rounded-xl neon-border">
-                        <i class="${icon} text-2xl ${colorClass}"></i>
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex items-center">
+                    <div class="p-2 ${colorClass} bg-opacity-20 rounded-lg">
+                        <i class="${icon} text-xl ${colorClass}"></i>
                     </div>
-                    ${change !== null ? '<div class="text-right">' + changeIndicator + '</div>' : ''}
-                </div>
-                <div>
-                    <p class="text-sm text-gray-400 font-medium">${title}</p>
-                    <p class="text-3xl font-bold neon-text ${colorClass} mt-1">${formattedValue}</p>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-400">${title}</p>
+                        <p class="text-2xl font-bold">${value}</p>
+                    </div>
                 </div>
             </div>
         `;
-    }
-
-    renderAdvancedPredictions(predictions) {
-        if (!predictions || predictions.length === 0) {
-            return `
-                <div class="text-center py-8 text-gray-400">
-                    <i class="fas fa-brain text-4xl mb-4 opacity-50"></i>
-                    <p>No AI predictions available</p>
-                    <p class="text-xs mt-2">Generate a new prediction to see TimesFM analysis</p>
-                </div>
-            `;
-        }
-
-        return predictions.slice(0, 3).map((pred, index) => `
-            <div class="bg-gray-800/60 rounded-lg p-4 border border-purple-500/30 hover:border-purple-500/60 transition-all">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-sm font-bold text-purple-400">#${index + 1} ${pred.symbol}</span>
-                    <span class="text-xs text-gray-400">${new Date(pred.timestamp).toLocaleString()}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                        <div class="text-gray-400">Predicted Price</div>
-                        <div class="text-lg font-bold text-blue-400">$${pred.predicted_price?.toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">Expected Return</div>
-                        <div class="text-lg font-bold ${(pred.predicted_return || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                            ${((pred.predicted_return || 0) * 100).toFixed(2)}%
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">AI Confidence</div>
-                        <div class="flex items-center">
-                            <div class="text-sm font-bold text-purple-400">${((pred.confidence_score || 0) * 100).toFixed(1)}%</div>
-                            <div class="ml-2 w-12 h-1 bg-gray-700 rounded">
-                                <div class="h-full bg-purple-400 rounded" style="width: ${(pred.confidence_score || 0) * 100}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">Horizon</div>
-                        <div class="text-sm font-bold text-yellow-400">${pred.horizon_hours}h</div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    renderAdvancedPositions(positions) {
-        if (!positions || positions.length === 0) {
-            return `
-                <div class="text-center py-8 text-gray-400">
-                    <i class="fas fa-chart-line text-4xl mb-4 opacity-50"></i>
-                    <p>No active positions</p>
-                    <p class="text-xs mt-2">Generate a signal to start trading</p>
-                </div>
-            `;
-        }
-
-        return positions.map(pos => `
-            <div class="bg-gray-800/60 rounded-lg p-4 border ${pos.side === 'buy' ? 'border-green-500/30' : 'border-red-500/30'} hover:border-blue-500/60 transition-all">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="font-bold">${pos.symbol}</span>
-                    <span class="px-3 py-1 rounded-full text-xs font-bold ${pos.side === 'buy' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}">
-                        ${pos.side.toUpperCase()}
-                    </span>
-                </div>
-                <div class="grid grid-cols-2 gap-3 text-sm mb-3">
-                    <div>
-                        <div class="text-gray-400">Entry Price</div>
-                        <div class="font-bold">$${pos.entry_price?.toFixed(2)}</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">Quantity</div>
-                        <div class="font-bold">${pos.quantity?.toFixed(6)}</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">Unrealized P&L</div>
-                        <div class="font-bold ${(pos.unrealized_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                            $${(pos.unrealized_pnl || 0).toFixed(2)}
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-gray-400">Duration</div>
-                        <div class="font-bold text-blue-400">${this.formatDuration(pos.created_at)}</div>
-                    </div>
-                </div>
-                <button onclick="app.closePosition(${pos.id})" class="w-full bg-red-600/20 hover:bg-red-600/40 text-red-400 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
-                    <i class="fas fa-times mr-1"></i>Close Position
-                </button>
-            </div>
-        `).join('');
-    }
-
-    renderAdvancedTrades(trades) {
-        if (!trades || trades.length === 0) {
-            return `
-                <div class="text-center py-8 text-gray-400">
-                    <i class="fas fa-history text-4xl mb-4 opacity-50"></i>
-                    <p>No recent trades</p>
-                </div>
-            `;
-        }
-
-        return `
-            <div class="space-y-2">
-                ${trades.slice(0, 8).map(trade => `
-                    <div class="table-row p-3 flex justify-between items-center">
-                        <div class="flex items-center space-x-3">
-                            <span class="w-12 h-6 rounded-full text-xs font-bold flex items-center justify-center ${
-                                trade.side === 'buy' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
-                            }">
-                                ${trade.side?.toUpperCase()}
-                            </span>
-                            <div>
-                                <div class="font-medium">${trade.symbol}</div>
-                                <div class="text-xs text-gray-400">${new Date(trade.timestamp).toLocaleString()}</div>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-bold ${(trade.realized_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                ${(trade.realized_pnl || 0) >= 0 ? '+' : ''}$${(trade.realized_pnl || 0).toFixed(2)}
-                            </div>
-                            <div class="text-xs text-gray-400">@$${trade.entry_price?.toFixed(2)}</div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    renderPerformanceMetrics(metrics) {
-        const metricsData = [
-            { label: 'Total P&L', value: `$${(metrics.total_pnl || 0).toFixed(2)}`, color: (metrics.total_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400', icon: 'fas fa-dollar-sign' },
-            { label: 'Win Rate', value: `${((metrics.win_rate || 0) * 100).toFixed(1)}%`, color: 'text-blue-400', icon: 'fas fa-percentage' },
-            { label: 'Total Trades', value: metrics.total_trades || 0, color: 'text-cyan-400', icon: 'fas fa-exchange-alt' },
-            { label: 'Avg Return', value: `${((metrics.avg_return || 0) * 100).toFixed(2)}%`, color: 'text-purple-400', icon: 'fas fa-chart-line' },
-            { label: 'Sharpe Ratio', value: (metrics.sharpe_ratio || 0).toFixed(3), color: 'text-yellow-400', icon: 'fas fa-calculator' },
-            { label: 'Max Drawdown', value: `${((metrics.max_drawdown || 0) * 100).toFixed(1)}%`, color: 'text-red-400', icon: 'fas fa-arrow-down' },
-            { label: 'Profit Factor', value: (metrics.profit_factor || 0).toFixed(2), color: 'text-green-400', icon: 'fas fa-trophy' },
-            { label: 'Best Trade', value: `$${(metrics.best_trade || 0).toFixed(2)}`, color: 'text-emerald-400', icon: 'fas fa-star' }
-        ];
-
-        return metricsData.map(metric => `
-            <div class="text-center p-4 bg-gray-800/40 rounded-lg border border-gray-700/50 hover:border-blue-500/30 transition-all">
-                <div class="mb-2">
-                    <i class="${metric.icon} text-lg ${metric.color}"></i>
-                </div>
-                <div class="text-lg font-bold ${metric.color} neon-text">${metric.value}</div>
-                <div class="text-xs text-gray-400 mt-1">${metric.label}</div>
-            </div>
-        `).join('');
     }
 
     renderPredictions(predictions) {
@@ -629,8 +446,169 @@ class CryptoTraderApp {
         `).join('');
     }
 
-    // ... Autres méthodes utilitaires ...
-    
+    renderSystemLogs() {
+        // Logs de démo si pas d'API disponible
+        const demoLogs = [
+            { timestamp: new Date(), level: 'INFO', message: 'Système initialisé avec succès' },
+            { timestamp: new Date(Date.now() - 60000), level: 'INFO', message: 'Connexion CoinGecko établie' },
+            { timestamp: new Date(Date.now() - 120000), level: 'INFO', message: 'Base de données connectée' },
+            { timestamp: new Date(Date.now() - 180000), level: 'WARN', message: 'Rate limit CoinGecko approché' },
+            { timestamp: new Date(Date.now() - 240000), level: 'INFO', message: 'Auto-refresh activé' }
+        ];
+
+        return demoLogs.map(log => `
+            <div class="mb-2 text-sm">
+                <span class="text-gray-400">${log.timestamp.toLocaleTimeString()}</span>
+                <span class="ml-2 px-2 py-1 rounded text-xs ${
+                    log.level === 'ERROR' ? 'bg-red-600' : 
+                    log.level === 'WARN' ? 'bg-yellow-600' : 
+                    'bg-green-600'
+                }">${log.level}</span>
+                <span class="ml-2 text-gray-300">${log.message}</span>
+            </div>
+        `).join('');
+    }
+
+    renderTimesFMLogs() {
+        // Logs TimesFM de démo
+        const demoLogs = [
+            { timestamp: new Date(), level: 'INFO', message: 'Prédiction TimesFM générée avec succès' },
+            { timestamp: new Date(Date.now() - 30000), level: 'INFO', message: 'Analyse des patterns de marché' },
+            { timestamp: new Date(Date.now() - 90000), level: 'INFO', message: 'Mise à jour du modèle neuronal' },
+            { timestamp: new Date(Date.now() - 150000), level: 'INFO', message: 'Calibration des hyperparamètres' },
+            { timestamp: new Date(Date.now() - 210000), level: 'WARN', message: 'Confiance du modèle en baisse' }
+        ];
+
+        return demoLogs.map(log => `
+            <div class="mb-2 text-sm">
+                <span class="text-gray-400">${log.timestamp.toLocaleTimeString()}</span>
+                <span class="ml-2 px-2 py-1 rounded text-xs ${
+                    log.level === 'ERROR' ? 'bg-red-600' : 
+                    log.level === 'WARN' ? 'bg-yellow-600' : 
+                    'bg-purple-600'
+                }">${log.level}</span>
+                <span class="ml-2 text-gray-300">${log.message}</span>
+            </div>
+        `).join('');
+    }
+
+    async loadSystemLogs() {
+        try {
+            const response = await fetch(`${this.apiBase}/logs/system?limit=10`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const logsContainer = document.getElementById('system-logs');
+                if (logsContainer) {
+                    logsContainer.innerHTML = data.logs.map(log => `
+                        <div class="mb-2 text-sm">
+                            <span class="text-gray-400">${new Date(log.timestamp).toLocaleTimeString()}</span>
+                            <span class="ml-2 px-2 py-1 rounded text-xs ${
+                                log.level === 'ERROR' ? 'bg-red-600' : 
+                                log.level === 'WARN' ? 'bg-yellow-600' : 
+                                'bg-green-600'
+                            }">${log.level}</span>
+                            <span class="ml-2 text-gray-300">${log.message}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        } catch (error) {
+            console.error('Erreur chargement logs système:', error);
+        }
+    }
+
+    async loadTimesFMLogs() {
+        try {
+            const response = await fetch(`${this.apiBase}/logs/timesfm?limit=10`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const logsContainer = document.getElementById('timesfm-logs');
+                if (logsContainer) {
+                    logsContainer.innerHTML = data.logs.map(log => `
+                        <div class="mb-2 text-sm">
+                            <span class="text-gray-400">${new Date(log.timestamp).toLocaleTimeString()}</span>
+                            <span class="ml-2 px-2 py-1 rounded text-xs ${
+                                log.level === 'ERROR' ? 'bg-red-600' : 
+                                log.level === 'WARN' ? 'bg-yellow-600' : 
+                                'bg-purple-600'
+                            }">${log.level}</span>
+                            <span class="ml-2 text-gray-300">${log.message}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        } catch (error) {
+            console.error('Erreur chargement logs TimesFM:', error);
+        }
+    }
+
+    async loadPriceChart() {
+        console.log(`📊 Loading ${this.currentCrypto} price chart...`);
+        
+        try {
+            const response = await fetch(`${this.apiBase}/market/history?crypto=${this.currentCrypto}&limit=24`);
+            const result = await response.json();
+            
+            if (result.success && result.data.length > 0) {
+                this.renderPriceChart(result.data);
+            }
+        } catch (error) {
+            console.error('Erreur chargement graphique:', error);
+        }
+    }
+
+    renderPriceChart(data) {
+        const ctx = document.getElementById('priceChart');
+        if (!ctx) return;
+
+        if (this.priceChart) {
+            this.priceChart.destroy();
+        }
+
+        const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        }));
+        const prices = data.map(d => d.close);
+
+        this.priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: `Prix ${this.currentCrypto} (USD)`,
+                    data: prices,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#9ca3af' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                    },
+                    y: {
+                        ticks: { color: '#9ca3af' },
+                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+
     showSuccess(message) {
         this.showNotification(message, 'success');
     }
@@ -707,235 +685,9 @@ class CryptoTraderApp {
             this.showError(`Erreur fermeture position: ${error.message}`);
         }
     }
-
-    // Advanced utility methods
-    formatDuration(timestamp) {
-        const diff = Date.now() - new Date(timestamp).getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        
-        if (hours > 0) return `${hours}h ${minutes}m`;
-        return `${minutes}m`;
-    }
-
-    initializeParticleEffects() {
-        // Enhanced particle system already handled in HTML
-        console.log('🎨 Particle effects initialized');
-    }
-
-    updateRealTimeElements() {
-        // Update timestamps and live data
-        setInterval(() => {
-            document.querySelectorAll('[data-timestamp]').forEach(el => {
-                const timestamp = el.getAttribute('data-timestamp');
-                el.textContent = this.formatDuration(timestamp);
-            });
-        }, 60000); // Update every minute
-    }
-
-    async loadAdvancedChart(data) {
-        console.log(`📊 Loading advanced ${this.currentCrypto} chart with AI predictions...`);
-        
-        try {
-            const canvas = document.getElementById('priceChart');
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            
-            // Get historical data for chart
-            const historyResponse = await fetch(`${this.apiBase}/market/history?crypto=${this.currentCrypto}&limit=24`);
-            const historyData = await historyResponse.json();
-            
-            if (historyData.success && historyData.data.length > 0) {
-                this.renderAdvancedChart(ctx, historyData.data, data.latest_predictions || []);
-            }
-        } catch (error) {
-            console.error('Chart loading error:', error);
-        }
-    }
-
-    renderAdvancedChart(ctx, priceData, predictions) {
-        const canvas = ctx.canvas;
-        const width = canvas.offsetWidth;
-        const height = canvas.offsetHeight;
-        canvas.width = width;
-        canvas.height = height;
-
-        if (priceData.length === 0) return;
-
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
-
-        // Extract prices and find min/max
-        const prices = priceData.map(d => d.close);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        const priceRange = maxPrice - minPrice;
-
-        // Draw grid
-        ctx.strokeStyle = 'rgba(75, 85, 99, 0.3)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= 5; i++) {
-            const y = (height / 5) * i;
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
-        }
-
-        // Draw price line
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        prices.forEach((price, index) => {
-            const x = (width / (prices.length - 1)) * index;
-            const y = height - ((price - minPrice) / priceRange) * height;
-            
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        });
-        ctx.stroke();
-
-        // Add glow effect
-        ctx.shadowColor = '#3b82f6';
-        ctx.shadowBlur = 10;
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        // Draw price points
-        ctx.fillStyle = '#3b82f6';
-        prices.forEach((price, index) => {
-            const x = (width / (prices.length - 1)) * index;
-            const y = height - ((price - minPrice) / priceRange) * height;
-            
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fill();
-        });
-
-        // Draw prediction indicators
-        if (predictions.length > 0) {
-            const latestPred = predictions[0];
-            if (latestPred.predicted_price) {
-                const predY = height - ((latestPred.predicted_price - minPrice) / priceRange) * height;
-                
-                // Prediction line
-                ctx.strokeStyle = '#8b5cf6';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(width * 0.8, predY);
-                ctx.lineTo(width, predY);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                // Prediction label
-                ctx.fillStyle = '#8b5cf6';
-                ctx.font = '12px Inter, sans-serif';
-                ctx.fillText(`Pred: $${latestPred.predicted_price.toFixed(2)}`, width - 100, predY - 10);
-            }
-        }
-    }
-
-    // Enhanced interaction methods
-    async generatePrediction() {
-        try {
-            this.showNotification('🧠 Generating AI prediction...', 'info');
-            
-            const response = await fetch(`${this.apiBase}/predictions/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    crypto: this.currentCrypto,
-                    horizon: 24 
-                })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                this.showNotification(`🎯 AI Prediction Complete: ${result.prediction.predicted_return > 0 ? '📈' : '📉'} ${(result.prediction.predicted_return * 100).toFixed(2)}%`, 'success');
-                await this.refreshData();
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (error) {
-            this.showError(`Prediction failed: ${error.message}`);
-        }
-    }
-
-    async closeAllPositions() {
-        if (!confirm('Close all active positions? This action cannot be undone.')) return;
-        
-        try {
-            const positions = this.dashboardData?.active_positions || [];
-            
-            for (const position of positions) {
-                await this.closePosition(position.id);
-            }
-            
-            this.showNotification('🔄 All positions closed successfully', 'success');
-            await this.refreshData();
-        } catch (error) {
-            this.showError(`Failed to close all positions: ${error.message}`);
-        }
-    }
-
-    async viewLogs() {
-        try {
-            const response = await fetch(`${this.apiBase}/logs/timesfm?limit=20`);
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showLogsModal(data.logs);
-            }
-        } catch (error) {
-            this.showError('Failed to load system logs');
-        }
-    }
-
-    showLogsModal(logs) {
-        const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm';
-        modal.innerHTML = `
-            <div class="glass-card max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
-                <div class="flex justify-between items-center p-6 border-b border-gray-700">
-                    <h3 class="text-xl font-bold neon-text text-blue-400">🖥️ System Logs</h3>
-                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white transition-colors">
-                        <i class="fas fa-times text-xl"></i>
-                    </button>
-                </div>
-                <div class="p-6 overflow-y-auto max-h-96">
-                    <div class="space-y-2 font-mono text-sm">
-                        ${logs.map(log => `
-                            <div class="flex items-start space-x-3 p-2 rounded ${
-                                log.level === 'ERROR' ? 'bg-red-900/20' : 
-                                log.level === 'WARN' ? 'bg-yellow-900/20' : 
-                                'bg-gray-800/50'
-                            }">
-                                <span class="text-xs text-gray-400 w-20">${new Date(log.timestamp).toLocaleTimeString()}</span>
-                                <span class="text-xs ${
-                                    log.level === 'ERROR' ? 'text-red-400' : 
-                                    log.level === 'WARN' ? 'text-yellow-400' : 
-                                    'text-green-400'
-                                } w-12">${log.level}</span>
-                                <span class="text-xs text-blue-400 w-20">${log.component}</span>
-                                <span class="text-gray-300 flex-1">${log.message}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
 }
 
-// Initialize the ultra-futuristic application
+// Initialiser l'application
 let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new CryptoTraderApp();
