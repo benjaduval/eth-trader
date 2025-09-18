@@ -40,7 +40,7 @@ Déployer la version complète et améliorée de ETH Trader Pro sur Cloudflare P
 
 ### Étape 2: Configuration du Projet
 
-**Nom du projet**: `eth-trader-v2`
+**Nom du projet**: `multi-crypto-ai-trader`
 **Framework preset**: None (Custom)
 **Build command**: `npm run build`
 **Build output directory**: `dist`
@@ -152,7 +152,7 @@ npm run test:production
 
 ## 🎉 Résultat Final
 
-**URL de Production**: https://eth-trader-v2.pages.dev
+**URL de Production**: https://multi-crypto-ai-trader.pages.dev
 
 ### Fonctionnalités Actives
 ✅ Interface multi-crypto complète  

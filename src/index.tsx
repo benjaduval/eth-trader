@@ -37,7 +37,7 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '2.0.1',
+    version: '3.0.0',
     services: {
       database: !!c.env.DB,
       coingecko_api: !!c.env.COINGECKO_API_KEY
@@ -1702,7 +1702,7 @@ app.get('/', async (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Crypto AI Trader Pro - Production</title>
+    <title>Multi-Crypto AI Trader Pro - Neural Network Trading</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
