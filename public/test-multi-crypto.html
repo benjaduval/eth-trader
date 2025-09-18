@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Multi-Crypto App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold mb-4 text-center">TEST - Multi-Crypto App</h1>
+        <p class="text-center text-gray-400 mb-8">Cherchez: Historique des trades + Popup prédictions</p>
+        
+        <div id="dashboard">
+            <div class="text-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+                <p>Chargement de app-multi-crypto.js...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/app-multi-crypto.js"></script>
+    <script>
+        console.log('🔧 Test: Loading app-multi-crypto.js');
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Chercher les fonctions disponibles dans le scope global
+                console.log('Available functions:', Object.keys(window).filter(key => typeof window[key] === 'function'));
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

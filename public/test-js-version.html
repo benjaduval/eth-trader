@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Ethereum AI Terminal JS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="static/style.css">
+    <style>
+        .crypto-tab.active {
+            background: linear-gradient(135deg, rgb(139 69 199 / 0.5), rgb(59 130 246 / 0.5)) !important;
+            border-color: rgb(139 69 199 / 0.8) !important;
+            color: rgb(255 255 255) !important;
+            box-shadow: 0 0 20px rgb(139 69 199 / 0.3);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+            <h2 class="text-xl font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">
+                TEST - Ethereum AI Terminal JS
+            </h2>
+            <p class="text-gray-400">Chargement de ethereum-ai-terminal.js...</p>
+        </div>
+    </div>
+
+    <!-- Neural Network Background -->
+    <div class="neural-network-bg"></div>
+    <div class="matrix-bg"></div>
+    
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="hidden min-h-screen">
+        <header class="bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-lg border-b border-purple-500/30">
+            <div class="container mx-auto px-6 py-4">
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                    TEST - Ethereum AI Terminal avec JS
+                </h1>
+                <p class="text-purple-300 text-sm">Cherchez: Historique des trades + Popup prédictions</p>
+            </div>
+        </header>
+
+        <div class="container mx-auto px-6 py-8">
+            <!-- Le contenu sera injecté ici -->
+        </div>
+    </div>
+
+    <script src="static/ethereum-ai-terminal.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🔧 Test: Loading ethereum-ai-terminal.js');
+            try {
+                window.app = new EthereumAITradingTerminal();
+            } catch (error) {
+                console.error('Error loading EthereumAITradingTerminal:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div class="text-center">
+                        <div class="text-red-400 text-xl mb-4">❌ Erreur</div>
+                        <p class="text-gray-400">Impossible de charger ethereum-ai-terminal.js</p>
+                        <p class="text-sm text-red-300">${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
