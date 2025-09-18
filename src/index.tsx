@@ -37,7 +37,7 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: '2.0.1',
     services: {
       database: !!c.env.DB,
       coingecko_api: !!c.env.COINGECKO_API_KEY
