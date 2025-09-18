@@ -1592,9 +1592,17 @@ app.get('/', (c) => {
                     
                     <!-- Crypto Selector -->
                     <div class="flex items-center space-x-4">
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center space-x-4">
+                            <!-- Crypto Selector avec support ETH/BTC -->
+                            <div class="flex items-center space-x-2">
+                                <label class="text-sm text-purple-300 font-medium">Asset:</label>
+                                <select id="cryptoSelector" class="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 backdrop-blur-sm">
+                                    <option value="ETH">⚡ Ethereum (ETH)</option>
+                                    <option value="BTC">₿ Bitcoin (BTC)</option>
+                                </select>
+                            </div>
                             <div class="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/30">
-                                <span class="text-sm text-purple-300 font-medium">⚡ ETH Focus Mode</span>
+                                <span class="text-sm text-purple-300 font-medium">🤖 AI Mode</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1">
