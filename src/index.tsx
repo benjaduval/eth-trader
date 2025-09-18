@@ -1554,7 +1554,7 @@ app.get('/', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Crypto Trader Pro - ETH & BTC Analysis</title>
+    <title>Ethereum AI Trading Terminal - Neural Network Powered Trading</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1565,35 +1565,37 @@ app.get('/', (c) => {
     <div id="loading" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
         <div class="text-center">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-            <h2 class="text-xl font-semibold text-blue-400 mb-2">Multi-Crypto Trader Pro</h2>
-            <p class="text-gray-400">Chargement du dashboard...</p>
+            <h2 class="text-xl font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">Ethereum AI Trading Terminal</h2>
+            <p class="text-gray-400">Initialisation du réseau neuronal...</p>
         </div>
     </div>
 
+    <!-- Neural Network Background -->
+    <div class="neural-network-bg"></div>
+    <div class="matrix-bg"></div>
+    
     <!-- Main Dashboard -->
-    <div id="dashboard" class="hidden min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+    <div id="dashboard" class="hidden min-h-screen bg-gradient-to-br from-gray-900/90 via-purple-900/90 to-blue-900/90 backdrop-blur-sm circuit-pattern">
         <!-- Header -->
-        <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700">
+        <header class="bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-lg border-b border-purple-500/30 glass-morphism-strong">
             <div class="container mx-auto px-6 py-4">
                 <div class="flex flex-col md:flex-row justify-between items-center">
                     <div class="flex items-center space-x-4 mb-4 md:mb-0">
-                        <div class="text-2xl">🚀</div>
+                        <div class="text-2xl eth-glow">⚡</div>
                         <div>
-                            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                                Multi-Crypto Trader Pro
+                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
+                                Ethereum AI Trading Terminal
                             </h1>
-                            <p class="text-gray-400 text-sm">ETH & BTC Analysis avec TimesFM & CoinGecko Pro</p>
+                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System</p>
                         </div>
                     </div>
                     
                     <!-- Crypto Selector -->
                     <div class="flex items-center space-x-4">
                         <div class="flex items-center space-x-2">
-                            <label class="text-sm text-gray-400">Crypto:</label>
-                            <select id="cryptoSelector" class="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white focus:border-blue-500">
-                                <option value="ETH">📊 Ethereum (ETH)</option>
-                                <option value="BTC">₿ Bitcoin (BTC)</option>
-                            </select>
+                            <div class="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/30">
+                                <span class="text-sm text-purple-300 font-medium">⚡ ETH Focus Mode</span>
+                            </div>
                         </div>
                         <div class="flex items-center space-x-1">
                             <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -1611,15 +1613,37 @@ app.get('/', (c) => {
     </div>
 
     <!-- Scripts -->
-    <script src="/static/app-multi-crypto.js"></script>
+    <script src="/static/ethereum-ai-terminal.js"></script>
     <script>
-        // Initialiser l'application
+        // Initialiser l'Ethereum AI Trading Terminal
         document.addEventListener('DOMContentLoaded', () => {
-            // Cacher le loading après 2 secondes
-            setTimeout(() => {
-                document.getElementById('loading').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-            }, 2000);
+            // Animation de chargement progressive
+            const loadingSteps = [
+                { text: 'Initialisation des réseaux neuronaux...', delay: 500 },
+                { text: 'Connexion aux flux de données en temps réel...', delay: 1000 },
+                { text: 'Chargement des modèles TimesFM...', delay: 1500 },
+                { text: 'Configuration du terminal AI...', delay: 2000 }
+            ];
+            
+            const loadingText = document.querySelector('#loading p');
+            let currentStep = 0;
+            
+            const updateLoading = () => {
+                if (currentStep < loadingSteps.length) {
+                    setTimeout(() => {
+                        loadingText.textContent = loadingSteps[currentStep].text;
+                        currentStep++;
+                        updateLoading();
+                    }, loadingSteps[currentStep]?.delay || 500);
+                } else {
+                    setTimeout(() => {
+                        document.getElementById('loading').classList.add('hidden');
+                        document.getElementById('dashboard').classList.remove('hidden');
+                    }, 500);
+                }
+            };
+            
+            updateLoading();
         });
     </script>
 </body>
