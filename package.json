@@ -21,6 +21,8 @@
     "test": "curl http://localhost:3000"
   },
   "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "dotenv": "^17.2.2",
     "hono": "^4.9.7"
   },
   "devDependencies": {

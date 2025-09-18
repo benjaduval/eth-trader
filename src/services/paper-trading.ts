@@ -24,7 +24,7 @@ export class PaperTradingEngine {
     this.config = {
       initialBalance: parseFloat(env.INITIAL_BALANCE || '10000'),
       feesPerSide: parseFloat(env.FEES_BPS_PER_SIDE || '8'),
-      maxPositionSize: 0.95, // 95% max du portfolio
+      maxPositionSize: 1.0, // 100% du capital disponible
       stopLossPercent: 5,
       takeProfitPercent: 15,
       volatilityTarget: parseFloat(env.VOLATILITY_TARGET || '0.30')
@@ -62,8 +62,8 @@ export class PaperTradingEngine {
       let action: 'buy' | 'sell' | 'hold' = 'hold';
       
       // Seuils basés sur la confiance et le retour prédit
-      const minConfidence = 0.6;
-      const minReturnThreshold = 0.02; // 2%
+      const minConfidence = 0.5; // > 50% de confiance requis
+      const minReturnThreshold = 0.012; // > 1.2% de retour prédit requis
       
       if (confidence >= minConfidence) {
         if (predictedReturn > minReturnThreshold) {
@@ -87,6 +87,7 @@ export class PaperTradingEngine {
         confidence,
         price: currentPrice,
         timestamp: new Date(),
+        symbol: symbol,
         predicted_return: predictedReturn,
         stop_loss: action !== 'hold' ? stopLoss : undefined,
         take_profit: action !== 'hold' ? takeProfit : undefined
@@ -97,7 +98,8 @@ export class PaperTradingEngine {
         action: 'hold',
         confidence: 0,
         price: currentPrice,
-        timestamp: new Date()
+        timestamp: new Date(),
+        symbol: symbol
       };
     }
   }
@@ -108,8 +110,8 @@ export class PaperTradingEngine {
     }
 
     try {
-      // Vérifier s'il y a déjà une position ouverte
-      const existingPosition = await this.getActivePosition();
+      // Vérifier s'il y a déjà une position ouverte pour ce symbol
+      const existingPosition = await this.getActivePosition(signal.symbol);
       
       if (existingPosition) {
         // Fermer la position existante si signal opposé
@@ -127,15 +129,15 @@ export class PaperTradingEngine {
         }
       }
 
-      // Calculer la taille de position
-      const currentBalance = await this.getCurrentBalance();
+      // Calculer la taille de position (100% du capital disponible pour ce symbol)
+      const currentBalance = await this.getCurrentBalance(signal.symbol);
       const maxPositionValue = currentBalance * this.config.maxPositionSize;
       const quantity = maxPositionValue / signal.price;
       const fees = (maxPositionValue * this.config.feesPerSide) / 10000; // basis points to decimal
 
       // Créer la nouvelle position
       const trade: PaperTrade = {
-        symbol: 'ETHUSDT',
+        symbol: signal.symbol,
         side: signal.action === 'buy' ? 'long' : 'short',
         entry_price: signal.price,
         quantity: quantity,
@@ -163,7 +165,7 @@ export class PaperTradingEngine {
 
       trade.id = result.meta.last_row_id as number;
 
-      console.log(`✅ Paper trade executed: ${signal.action} ${quantity.toFixed(4)} ETH at $${signal.price}`);
+      console.log(`✅ Paper trade executed: ${signal.action} ${quantity.toFixed(4)} ${signal.symbol} at $${signal.price}`);
       
       return trade;
     } catch (error) {
@@ -211,7 +213,7 @@ export class PaperTradingEngine {
         tradeId
       ).run();
 
-      console.log(`✅ Position closed: ${trade.side} ${trade.quantity.toFixed(4)} ETH - P&L: $${netPnl.toFixed(2)}`);
+      console.log(`✅ Position closed: ${trade.side} ${trade.quantity.toFixed(4)} ${trade.symbol} - P&L: $${netPnl.toFixed(2)}`);
 
       return {
         ...trade,
@@ -272,11 +274,21 @@ export class PaperTradingEngine {
     }
   }
 
-  async getActivePosition(): Promise<PaperTrade | null> {
+  async getActivePosition(symbol?: string): Promise<PaperTrade | null> {
     try {
-      const result = await this.db.prepare(`
-        SELECT * FROM paper_trades WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1
-      `).first();
+      let query = `SELECT * FROM paper_trades WHERE status = 'open'`;
+      const params: any[] = [];
+      
+      if (symbol) {
+        query += ` AND symbol = ?`;
+        params.push(symbol);
+      }
+      
+      query += ` ORDER BY opened_at DESC LIMIT 1`;
+      
+      const result = params.length > 0 
+        ? await this.db.prepare(query).bind(...params).first()
+        : await this.db.prepare(query).first();
 
       return result as PaperTrade | null;
     } catch (error) {
@@ -285,11 +297,21 @@ export class PaperTradingEngine {
     }
   }
 
-  async getActivePositions(): Promise<PaperTrade[]> {
+  async getActivePositions(symbol?: string): Promise<PaperTrade[]> {
     try {
-      const result = await this.db.prepare(`
-        SELECT * FROM paper_trades WHERE status = 'open' ORDER BY opened_at DESC
-      `).all();
+      let query = `SELECT * FROM paper_trades WHERE status = 'open'`;
+      const params: any[] = [];
+      
+      if (symbol) {
+        query += ` AND symbol = ?`;
+        params.push(symbol);
+      }
+      
+      query += ` ORDER BY opened_at DESC`;
+      
+      const result = params.length > 0 
+        ? await this.db.prepare(query).bind(...params).all()
+        : await this.db.prepare(query).all();
 
       return result.results as PaperTrade[];
     } catch (error) {
@@ -298,26 +320,33 @@ export class PaperTradingEngine {
     }
   }
 
-  async getCurrentBalance(): Promise<number> {
+  async getCurrentBalance(symbol?: string): Promise<number> {
     try {
-      // Calculer le balance basé sur les trades fermés
-      const result = await this.db.prepare(`
-        SELECT COALESCE(SUM(net_pnl), 0) as total_pnl FROM paper_trades WHERE status = 'closed'
-      `).first() as any;
+      let query = `SELECT COALESCE(SUM(net_pnl), 0) as total_pnl FROM paper_trades WHERE status = 'closed'`;
+      const params: any[] = [];
+      
+      if (symbol) {
+        query += ` AND symbol = ?`;
+        params.push(symbol);
+      }
+      
+      const result = params.length > 0
+        ? await this.db.prepare(query).bind(...params).first()
+        : await this.db.prepare(query).first();
 
-      return this.config.initialBalance + (result?.total_pnl || 0);
+      return this.config.initialBalance + ((result as any)?.total_pnl || 0);
     } catch (error) {
       console.error('Error getting current balance:', error);
       return this.config.initialBalance;
     }
   }
 
-  async getPerformanceMetrics(days: number = 30): Promise<PerformanceMetrics> {
+  async getPerformanceMetrics(days: number = 30, symbol?: string): Promise<PerformanceMetrics> {
     try {
       const since = new Date();
       since.setDate(since.getDate() - days);
 
-      const result = await this.db.prepare(`
+      let query = `
         SELECT 
           COUNT(*) as total_trades,
           SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
@@ -327,8 +356,16 @@ export class PaperTradingEngine {
           COALESCE(AVG(CASE WHEN net_pnl > 0 THEN net_pnl END), 0) as avg_win,
           COALESCE(AVG(CASE WHEN net_pnl <= 0 THEN ABS(net_pnl) END), 0) as avg_loss
         FROM paper_trades 
-        WHERE status = 'closed' AND closed_at >= ?
-      `).bind(since.toISOString()).first() as any;
+        WHERE status = 'closed' AND closed_at >= ?`;
+      
+      const params: any[] = [since.toISOString()];
+      
+      if (symbol) {
+        query += ` AND symbol = ?`;
+        params.push(symbol);
+      }
+      
+      const result = await this.db.prepare(query).bind(...params).first() as any;
 
       const totalTrades = result?.total_trades || 0;
       const winningTrades = result?.winning_trades || 0;
@@ -402,14 +439,20 @@ export class PaperTradingEngine {
     }
   }
 
-  async getRecentTrades(limit: number = 10): Promise<PaperTrade[]> {
+  async getRecentTrades(limit: number = 10, symbol?: string): Promise<PaperTrade[]> {
     try {
-      const result = await this.db.prepare(`
-        SELECT * FROM paper_trades 
-        WHERE status = 'closed'
-        ORDER BY closed_at DESC 
-        LIMIT ?
-      `).bind(limit).all();
+      let query = `SELECT * FROM paper_trades WHERE status = 'closed'`;
+      const params: any[] = [];
+      
+      if (symbol) {
+        query += ` AND symbol = ?`;
+        params.push(symbol);
+      }
+      
+      query += ` ORDER BY closed_at DESC LIMIT ?`;
+      params.push(limit);
+      
+      const result = await this.db.prepare(query).bind(...params).all();
 
       return result.results as PaperTrade[];
     } catch (error) {
@@ -482,7 +525,7 @@ export class PaperTradingEngine {
       }
       
       // 2. NOUVEAU: Confiance TimesFM trop faible
-      if (prediction.confidence_score < 0.4) {
+      if (prediction.confidence_score < 0.3) { // Ajusté selon nouveaux seuils (50% -> 30% fermeture)
         reasons.push('low_confidence');
       }
       
@@ -523,8 +566,8 @@ export class PaperTradingEngine {
    */
   private evaluateSignalFromPrediction(prediction: TimesFMPrediction): 'buy' | 'sell' | 'hold' {
     const { predicted_return, confidence_score } = prediction;
-    const minConfidence = 0.6;
-    const minReturnThreshold = 0.02; // 2%
+    const minConfidence = 0.5; // > 50% de confiance requis
+    const minReturnThreshold = 0.012; // > 1.2% de retour prédit requis
     
     if (confidence_score >= minConfidence) {
       if (predicted_return > minReturnThreshold) return 'buy';

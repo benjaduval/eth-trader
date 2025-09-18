@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Crypto Trader Pro - ETH & BTC Analysis</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f1f5f9;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid #334155;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            margin: 0.5rem 0 0;
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+        
+        .crypto-tabs {
+            display: flex;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-bottom: 1px solid #334155;
+        }
+        
+        .tab-button {
+            background: rgba(51, 65, 85, 0.5);
+            color: #94a3b8;
+            border: none;
+            padding: 0.75rem 2rem;
+            margin: 0 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        
+        .tab-button.active {
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .tab-button:hover:not(.active) {
+            background: rgba(71, 85, 105, 0.8);
+            color: #f1f5f9;
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+            color: #94a3b8;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #334155;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .dashboard {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .dashboard.active {
+            display: block;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid #334155;
+            backdrop-filter: blur(10px);
+        }
+        
+        .card h3 {
+            margin: 0 0 1rem;
+            color: #f1f5f9;
+            font-size: 1.2rem;
+        }
+        
+        .price-display {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #10b981;
+            margin-bottom: 0.5rem;
+        }
+        
+        .balance-display {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .metric:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        
+        .metric-value {
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+        
+        .positive { color: #10b981; }
+        .negative { color: #ef4444; }
+        .neutral { color: #94a3b8; }
+        
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            border-top: 1px solid #334155;
+            margin-top: 2rem;
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #fecaca;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">📈</div>
+        <h1>Multi-Crypto Trader Pro</h1>
+        <p>ETH & BTC Analysis with TimesFM & CoinGecko Pro</p>
+    </div>
+
+    <div class="crypto-tabs">
+        <button class="tab-button active" onclick="switchCrypto('ETH')" id="eth-tab">
+            📊 Ethereum (ETH)
+        </button>
+        <button class="tab-button" onclick="switchCrypto('BTC')" id="btc-tab">
+            ₿ Bitcoin (BTC)
+        </button>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading dashboard...</p>
+    </div>
+
+    <div id="eth-dashboard" class="dashboard active">
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>💰 Current ETH Price</h3>
+                <div class="price-display" id="eth-price">$0.00</div>
+                <div class="metric">
+                    <span class="metric-label">24h Change</span>
+                    <span class="metric-value" id="eth-change">+0.00%</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💼 Portfolio Balance</h3>
+                <div class="balance-display" id="eth-balance">$0.00</div>
+                <div class="metric">
+                    <span class="metric-label">Active Positions</span>
+                    <span class="metric-value" id="eth-positions">0</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🧠 TimesFM Predictions</h3>
+                <div id="eth-predictions"></div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Trading Metrics</h3>
+                <div id="eth-metrics"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="btc-dashboard" class="dashboard">
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>💰 Current BTC Price</h3>
+                <div class="price-display" id="btc-price">$0.00</div>
+                <div class="metric">
+                    <span class="metric-label">24h Change</span>
+                    <span class="metric-value" id="btc-change">+0.00%</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💼 Portfolio Balance</h3>
+                <div class="balance-display" id="btc-balance">$0.00</div>
+                <div class="metric">
+                    <span class="metric-label">Active Positions</span>
+                    <span class="metric-value" id="btc-positions">0</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🧠 TimesFM Predictions</h3>
+                <div id="btc-predictions"></div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Trading Metrics</h3>
+                <div id="btc-metrics"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>🚀 Multi-Crypto Trader Pro | Real-time ETH & BTC Analysis | Powered by TimesFM & CoinGecko Pro</p>
+        <p>Trading Parameters: Confidence > 50% | Return > 1.2% | Position Size: 100%</p>
+    </div>
+
+    <script>
+        let currentCrypto = 'ETH';
+
+        function switchCrypto(crypto) {
+            currentCrypto = crypto;
+            
+            // Update tabs
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(crypto.toLowerCase() + '-tab').classList.add('active');
+            
+            // Update dashboards
+            document.querySelectorAll('.dashboard').forEach(dash => {
+                dash.classList.remove('active');
+            });
+            document.getElementById(crypto.toLowerCase() + '-dashboard').classList.add('active');
+            
+            // Refresh data
+            loadDashboard(crypto);
+        }
+
+        async function loadDashboard(crypto) {
+            try {
+                console.log(`Loading ${crypto} dashboard...`);
+                
+                // Load dashboard data
+                const response = await fetch(`/api/dashboard?crypto=${crypto}`);
+                const data = await response.json();
+                
+                if (data.success && data.dashboard) {
+                    updateUI(crypto, data.dashboard);
+                } else {
+                    throw new Error(`Failed to load ${crypto} dashboard: ${data.error || 'Unknown error'}`);
+                }
+                
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Dashboard loading error:', error);
+                showError(`Failed to load ${crypto} dashboard: ${error.message}`);
+            }
+        }
+
+        function updateUI(crypto, dashboard) {
+            const prefix = crypto.toLowerCase();
+            
+            // Update price
+            document.getElementById(`${prefix}-price`).textContent = `$${dashboard.current_price.toLocaleString()}`;
+            
+            // Update balance
+            document.getElementById(`${prefix}-balance`).textContent = `$${dashboard.current_balance.toLocaleString()}`;
+            
+            // Update positions
+            document.getElementById(`${prefix}-positions`).textContent = dashboard.active_positions.length;
+            
+            // Update predictions
+            const predictionsEl = document.getElementById(`${prefix}-predictions`);
+            if (dashboard.latest_predictions && dashboard.latest_predictions.length > 0) {
+                const pred = dashboard.latest_predictions[0];
+                predictionsEl.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-label">Predicted Price</span>
+                        <span class="metric-value">$${pred.predicted_price.toFixed(2)}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Expected Return</span>
+                        <span class="metric-value ${pred.predicted_return > 0 ? 'positive' : 'negative'}">
+                            ${(pred.predicted_return * 100).toFixed(2)}%
+                        </span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Confidence</span>
+                        <span class="metric-value">${(pred.confidence_score * 100).toFixed(1)}%</span>
+                    </div>
+                `;
+            } else {
+                predictionsEl.innerHTML = '<p class="neutral">No recent predictions</p>';
+            }
+            
+            // Update metrics
+            const metricsEl = document.getElementById(`${prefix}-metrics`);
+            if (dashboard.metrics) {
+                const metrics = dashboard.metrics;
+                metricsEl.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-label">Total Trades</span>
+                        <span class="metric-value">${metrics.total_trades || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Win Rate</span>
+                        <span class="metric-value ${(metrics.win_rate || 0) > 0.5 ? 'positive' : 'negative'}">
+                            ${((metrics.win_rate || 0) * 100).toFixed(1)}%
+                        </span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Net P&L</span>
+                        <span class="metric-value ${(metrics.net_pnl || 0) >= 0 ? 'positive' : 'negative'}">
+                            $${(metrics.net_pnl || 0).toFixed(2)}
+                        </span>
+                    </div>
+                `;
+            } else {
+                metricsEl.innerHTML = '<p class="neutral">No trading metrics available</p>';
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading').innerHTML = `
+                <div class="error">
+                    <h3>⚠️ Error</h3>
+                    <p>${message}</p>
+                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.25rem; cursor: pointer;">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadDashboard(currentCrypto);
+        }, 30000);
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard(currentCrypto);
+        });
+    </script>
+</body>
+</html>

@@ -477,11 +477,11 @@ app.get('/api/dashboard', async (c) => {
     }
     const symbol = cryptoMap[crypto.toUpperCase()] || `${crypto.toUpperCase()}USDT`
     
-    // Positions et métriques
+    // Positions et métriques pour la crypto sélectionnée SEULEMENT
     const [activePositions, metrics, recentTrades] = await Promise.all([
-      tradingEngine.getActivePositions(), // Toutes les positions (multi-crypto)
-      tradingEngine.getPerformanceMetrics(30),
-      tradingEngine.getRecentTrades(10)
+      tradingEngine.getActivePositions(symbol), // Positions filtrées par crypto
+      tradingEngine.getPerformanceMetrics(30, symbol), // Métriques filtrées par crypto
+      tradingEngine.getRecentTrades(10, symbol) // Trades récents filtrés par crypto
     ])
     
     // Prédictions pour la crypto sélectionnée
@@ -503,8 +503,8 @@ app.get('/api/dashboard', async (c) => {
       quantile_90: row.quantile_90
     }))
     
-    // Balance actuelle
-    const currentBalance = await tradingEngine.getCurrentBalance()
+    // Balance actuelle pour cette crypto spécifiquement
+    const currentBalance = await tradingEngine.getCurrentBalance(symbol)
     
     // Données de marché (optionnel, peut être lourd)
     const marketData = c.req.query('include_market') === 'true' 
@@ -1546,41 +1546,368 @@ app.post('/api/admin/run-automation', async (c) => {
 // PAGE PRINCIPALE
 // ===============================
 
+// Route pour servir l'interface web à la racine
 app.get('/', (c) => {
   return c.html(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Multi-Crypto Trader Pro - ETH & BTC Analysis with TimesFM</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <link href="/static/style.css" rel="stylesheet">
-    </head>
-    <body class="bg-gray-900 text-white min-h-screen">
-        <div id="app" class="container mx-auto px-4 py-8">
-            <div class="text-center py-8">
-                <i class="fas fa-chart-line text-6xl text-green-400 mb-4"></i>
-                <h1 class="text-4xl font-bold mb-2">Multi-Crypto Trader Pro</h1>
-                <p class="text-gray-400 text-lg mb-8">ETH & BTC Analysis with TimesFM & CoinGecko Pro</p>
-                <div id="loading" class="text-center">
-                    <i class="fas fa-spinner fa-spin text-2xl text-blue-400"></i>
-                    <p class="mt-2">Loading dashboard...</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Crypto Trader Pro - ETH & BTC Analysis</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Ultra-futuristic design with advanced animations */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: radial-gradient(circle at 20% 80%, #0f172a 0%, #1e293b 25%, #0f172a 50%);
+            color: #f1f5f9;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(59, 130, 246, 0.6);
+            border-radius: 50%;
+            animation: float 6s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) translateX(0px); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) translateX(100px); opacity: 0; }
+        }
+
+        /* Glassmorphism cards */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(75, 85, 99, 0.3);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .glass-card:hover::before {
+            left: 100%;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 20px 40px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Neon glow effects */
+        .neon-text {
+            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 40px currentColor;
+        }
+
+        .neon-border {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5), inset 0 0 20px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Pulse animations */
+        .pulse-slow {
+            animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+
+        /* Advanced metric displays */
+        .metric-card {
+            position: relative;
+            padding: 1.5rem;
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8));
+            border-radius: 12px;
+            border: 1px solid rgba(75, 85, 99, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: rgba(59, 130, 246, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* Holographic buttons */
+        .holo-btn {
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4, #10b981);
+            background-size: 300% 300%;
+            animation: gradient-shift 3s ease infinite;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            padding: 12px 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .holo-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Status indicators with pulsing */
+        .status-online {
+            color: #10b981;
+            animation: pulse-glow-green 2s infinite;
+        }
+
+        .status-warning {
+            color: #f59e0b;
+            animation: pulse-glow-orange 2s infinite;
+        }
+
+        .status-error {
+            color: #ef4444;
+            animation: pulse-glow-red 2s infinite;
+        }
+
+        @keyframes pulse-glow-green {
+            0%, 100% { text-shadow: 0 0 5px #10b981; }
+            50% { text-shadow: 0 0 20px #10b981, 0 0 30px #10b981; }
+        }
+
+        @keyframes pulse-glow-orange {
+            0%, 100% { text-shadow: 0 0 5px #f59e0b; }
+            50% { text-shadow: 0 0 20px #f59e0b, 0 0 30px #f59e0b; }
+        }
+
+        @keyframes pulse-glow-red {
+            0%, 100% { text-shadow: 0 0 5px #ef4444; }
+            50% { text-shadow: 0 0 20px #ef4444, 0 0 30px #ef4444; }
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+            border-radius: 4px;
+        }
+
+        /* Responsive grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .glass-card {
+                margin: 0 0.5rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(59, 130, 246, 0.2);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite, pulse-glow 2s infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+        }
+
+        /* Chart containers */
+        .chart-container {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid rgba(75, 85, 99, 0.2);
+        }
+
+        /* Advanced table styles */
+        .futuristic-table {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(75, 85, 99, 0.3);
+        }
+
+        .table-row {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+        }
+
+        .table-row:hover {
+            background: rgba(59, 130, 246, 0.1);
+            transform: scale(1.01);
+        }
+
+        /* Price change indicators */
+        .price-up {
+            color: #10b981;
+            text-shadow: 0 0 10px #10b981;
+        }
+
+        .price-down {
+            color: #ef4444;
+            text-shadow: 0 0 10px #ef4444;
+        }
+
+        .price-neutral {
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading" class="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 loading-container">
+        <div class="loading-spinner mb-4"></div>
+        <h2 class="text-2xl font-bold mb-2 neon-text text-blue-400">Multi-Crypto Trader Pro</h2>
+        <p class="text-gray-400">Initializing ultra-futuristic dashboard...</p>
+        <div class="mt-4 flex space-x-2">
+            <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
+            <div class="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
+            <div class="w-2 h-2 bg-green-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
+        </div>
+    </div>
+
+    <!-- Main dashboard -->
+    <div id="dashboard" class="hidden min-h-screen">
+        <!-- Header -->
+        <div class="relative overflow-hidden bg-gradient-to-r from-gray-900 via-blue-900 to-gray-900 border-b border-gray-700">
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-cyan-500/10"></div>
+            <div class="relative container mx-auto px-6 py-8">
+                <div class="text-center">
+                    <h1 class="text-5xl font-bold mb-2 neon-text text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400">
+                        Multi-Crypto Trader Pro
+                    </h1>
+                    <p class="text-xl text-gray-300 mb-6">Advanced ETH & BTC Analysis with TimesFM & CoinGecko Pro</p>
+                    <div class="flex justify-center items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full status-online"></div>
+                            <span class="text-sm text-gray-400">Live Market Data</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full status-online"></div>
+                            <span class="text-sm text-gray-400">TimesFM AI Active</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full status-online"></div>
+                            <span class="text-sm text-gray-400">Auto-Trading ON</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Dashboard content injected by JavaScript -->
-            <div id="dashboard" class="hidden">
-                <!-- Dynamic dashboard content -->
-            </div>
         </div>
-        
-        <script src="/static/app-multi-crypto.js"></script>
-    </body>
-    </html>
+
+        <div class="container mx-auto px-6 py-8">
+            <!-- Dashboard content will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/app-multi-crypto.js"></script>
+    <script>
+        // Initialize particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 6 + 's';
+                particle.style.animationDuration = (Math.random() * 3 + 4) + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            
+            // Hide loading after initialization
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
   `)
 })
 

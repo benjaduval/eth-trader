@@ -39,6 +39,7 @@ export interface TradingSignal {
   confidence: number;
   price: number;
   timestamp: Date;
+  symbol: string; // Ajout du symbol pour multi-crypto
   predicted_return?: number;
   stop_loss?: number;
   take_profit?: number;
