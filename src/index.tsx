@@ -1559,6 +1559,27 @@ app.get('/', (c) => {
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .crypto-tab.active {
+            background: linear-gradient(135deg, rgb(139 69 199 / 0.3), rgb(59 130 246 / 0.3));
+            border-color: rgb(139 69 199 / 0.5);
+            color: rgb(196 181 253);
+        }
+        .predictions-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .predictions-scroll::-webkit-scrollbar-track {
+            background: rgb(31 41 55 / 0.5);
+            border-radius: 3px;
+        }
+        .predictions-scroll::-webkit-scrollbar-thumb {
+            background: rgb(139 69 199 / 0.5);
+            border-radius: 3px;
+        }
+        .predictions-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgb(139 69 199 / 0.8);
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
     <!-- Loading Screen -->
@@ -1592,10 +1613,16 @@ app.get('/', (c) => {
                     
                     <!-- Crypto Selector -->
                     <div class="flex items-center space-x-4">
+                        <!-- ETH/BTC Tabs -->
                         <div class="flex items-center space-x-2">
-                            <div class="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/30">
-                                <span class="text-sm text-purple-300 font-medium">⚡ ETH Focus Mode</span>
-                            </div>
+                            <button onclick="app.switchCrypto('ETH')" id="eth-tab" 
+                                class="crypto-tab active bg-gradient-to-r from-purple-500/30 to-blue-500/30 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/50 text-sm text-purple-200 font-medium hover:border-purple-400 transition-all">
+                                ⚡ Ethereum
+                            </button>
+                            <button onclick="app.switchCrypto('BTC')" id="btc-tab" 
+                                class="crypto-tab bg-gradient-to-r from-gray-500/20 to-gray-600/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-500/30 text-sm text-gray-400 font-medium hover:border-gray-400 transition-all">
+                                ₿ Bitcoin
+                            </button>
                         </div>
                         <div class="flex items-center space-x-1">
                             <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

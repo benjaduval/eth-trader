@@ -9,7 +9,7 @@ class EthereumAITradingTerminal {
         this.refreshInterval = 30000; // 30 secondes
         this.priceChart = null;
         this.isAutoRefreshEnabled = true;
-        this.currentCrypto = 'ETH'; // Focus sur ETH pour ce terminal
+        this.currentCrypto = 'ETH'; // Crypto par défaut, mais peut changer vers BTC
         this.supportedCryptos = ['ETH', 'BTC'];
         
         this.init();
@@ -68,14 +68,27 @@ class EthereumAITradingTerminal {
         const dashboard = document.getElementById('dashboard');
         
         try {
-            const response = await fetch(`${this.apiBase}/dashboard?include_market=true&crypto=${this.currentCrypto}`);
-            const result = await response.json();
+            // Récupérer plus de prédictions pour la liste complète
+            const [dashboardResponse, predictionsResponse] = await Promise.all([
+                fetch(`${this.apiBase}/dashboard?include_market=true&crypto=${this.currentCrypto}`),
+                fetch(`${this.apiBase}/predictions/latest?limit=10&crypto=${this.currentCrypto}`)
+            ]);
+            const [dashboardResult, predictionsResult] = await Promise.all([
+                dashboardResponse.json(),
+                predictionsResponse.json()
+            ]);
             
-            if (!result.success) {
-                throw new Error(result.error || 'Erreur dashboard');
+            if (!dashboardResult.success) {
+                throw new Error(dashboardResult.error || 'Erreur dashboard');
             }
             
-            this.renderEthereumAITerminal(result.dashboard);
+            // Ajouter la liste complète des prédictions au dashboard
+            const enhancedDashboard = {
+                ...dashboardResult.dashboard,
+                complete_predictions: predictionsResult.success ? predictionsResult.predictions : []
+            };
+            
+            this.renderEthereumAITerminal(enhancedDashboard);
             
             loading.classList.add('hidden');
             dashboard.classList.remove('hidden');
@@ -132,7 +145,7 @@ class EthereumAITradingTerminal {
                         </div>
                         <div class="text-right">
                             <div class="text-2xl font-bold text-white">$${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
-                            <div class="text-sm text-purple-300">ETH/USD</div>
+                            <div class="text-sm text-purple-300">${this.currentCrypto}/USD</div>
                         </div>
                     </div>
                 </div>
@@ -226,7 +239,7 @@ class EthereumAITradingTerminal {
                             $${latestPrediction?.predicted_price?.toLocaleString() || 'Computing...'}
                         </div>
                         <div class="text-xs text-blue-400">
-                            Confidence: ${latestPrediction?.confidence_score ? (latestPrediction.confidence_score * 100).toFixed(1) + '%' : 'N/A'}
+                            Confidence: ${latestPrediction?.confidence_score ? (latestPrediction.confidence_score * 100).toFixed(1) + '%' : 'N/A'} ${latestPrediction?.confidence_score > 0.59 ? '✅' : '⚠️'}
                         </div>
                     </div>
                     
@@ -264,6 +277,75 @@ class EthereumAITradingTerminal {
                             <span class="text-purple-300">Market Sentiment</span>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Liste complète des prédictions TimesFM -->
+                ${this.generateCompletePredictionsList(dashboard)}
+            </div>
+        `;
+    }
+    
+    generateCompletePredictionsList(dashboard) {
+        const predictions = dashboard.complete_predictions || dashboard.latest_predictions || [];
+        
+        if (!predictions || predictions.length === 0) {
+            return `
+                <div class="mt-6 p-4 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                    <div class="text-center text-gray-400">
+                        <span class="text-2xl">🤖</span>
+                        <div class="mt-2">Génération de nouvelles prédictions en cours...</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white flex items-center">
+                        <span class="mr-2">📊</span>
+                        Complete TimesFM Results (${predictions.length})
+                    </h3>
+                    <div class="text-xs text-gray-400">
+                        Seuil: Confidence > 59%
+                    </div>
+                </div>
+                
+                <div class="max-h-80 overflow-y-auto space-y-2 predictions-scroll">
+                    ${predictions.map((pred, index) => {
+                        const isHighConfidence = pred.confidence_score > 0.59;
+                        const confidenceIcon = isHighConfidence ? '✅' : '⚠️';
+                        const borderColor = isHighConfidence ? 'border-green-500/50' : 'border-yellow-500/50';
+                        const bgColor = isHighConfidence ? 'bg-green-900/20' : 'bg-yellow-900/20';
+                        
+                        return `
+                            <div class="prediction-item flex items-center justify-between p-3 ${bgColor} rounded-lg border ${borderColor} hover:border-blue-500/50 transition-all">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">
+                                        ${index + 1}
+                                    </div>
+                                    <div>
+                                        <div class="text-white font-medium">$${pred.predicted_price?.toFixed(2) || 'N/A'}</div>
+                                        <div class="text-xs text-gray-400">${new Date(pred.timestamp).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="text-sm ${(pred.predicted_return || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                            ${pred.predicted_return ? ((pred.predicted_return * 100).toFixed(2) + '%') : 'N/A'}
+                                        </div>
+                                        <span class="text-lg">${confidenceIcon}</span>
+                                    </div>
+                                    <div class="text-xs text-purple-300">
+                                        ${pred.confidence_score ? ((pred.confidence_score * 100).toFixed(1) + '%') : 'N/A'} conf.
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        Range: $${pred.quantile_10?.toFixed(0) || 'N/A'} - $${pred.quantile_90?.toFixed(0) || 'N/A'}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -727,6 +809,30 @@ class EthereumAITradingTerminal {
                 }
             }
         });
+    }
+    
+    async switchCrypto(newCrypto) {
+        if (newCrypto !== this.currentCrypto) {
+            console.log(`🔄 Switching from ${this.currentCrypto} to ${newCrypto}`);
+            this.currentCrypto = newCrypto;
+            
+            // Mettre à jour l'apparence des onglets
+            document.querySelectorAll('.crypto-tab').forEach(tab => {
+                tab.classList.remove('active');
+                tab.classList.remove('from-purple-500/30', 'to-blue-500/30', 'border-purple-500/50', 'text-purple-200');
+                tab.classList.add('from-gray-500/20', 'to-gray-600/20', 'border-gray-500/30', 'text-gray-400');
+            });
+            
+            const activeTab = document.getElementById(`${newCrypto.toLowerCase()}-tab`);
+            if (activeTab) {
+                activeTab.classList.add('active');
+                activeTab.classList.remove('from-gray-500/20', 'to-gray-600/20', 'border-gray-500/30', 'text-gray-400');
+                activeTab.classList.add('from-purple-500/30', 'to-blue-500/30', 'border-purple-500/50', 'text-purple-200');
+            }
+            
+            // Recharger les données pour la nouvelle crypto
+            await this.loadEthereumAITerminal();
+        }
     }
     
     showError(message) {
