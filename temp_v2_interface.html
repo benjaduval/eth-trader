@@ -1,0 +1,200 @@
+      SELECT COUNT(*) as total FROM market_data WHERE symbol = 'ETHUSDT'
+    `).first() as any
+    
+    const totalPoints = totalPointsResult?.total || 0
+    
+    console.log(`✅ Incremental update: +${insertedCount} new points, ${cleanupResult.meta.changes} old points cleaned, ${totalPoints} total`)
+    
+    return c.json({
+      success: true,
+      message: `Incremental update completed: +${insertedCount} new points`,
+      new_points_added: insertedCount,
+      old_points_cleaned: cleanupResult.meta.changes || 0,
+      total_points_now: totalPoints,
+      last_timestamp_before: lastTimestamp,
+      newest_timestamp: newDataPoints[newDataPoints.length - 1]?.timestamp,
+      efficiency: 'High - only fetched new data points'
+    })
+    
+  } catch (error) {
+    console.error('❌ Incremental update failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Incremental update failed'
+    }, 500)
+  }
+})
+
+// Collecte automatique des données de marché et génération de prédictions
+app.post('/api/admin/update-market-data', async (c) => {
+  try {
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const timesFM = new TimesFMPredictor(c.env.DB)
+    
+    // 1. Collecter les données de marché actuelles
+    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const marketData = await coinGecko.getEnhancedMarketData()
+    
+    if (!currentPrice || !marketData) {
+      throw new Error('Failed to fetch market data from CoinGecko')
+    }
+    
+    // 2. Sauvegarder les données de marché dans la base
+    await c.env.DB.prepare(`
+      INSERT OR REPLACE INTO market_data 
+      (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      'ETHUSDT',
+      '1h',
+      marketData.open_24h || currentPrice,
+      marketData.high_24h || currentPrice,
+      marketData.low_24h || currentPrice,
+      currentPrice,
+      marketData.volume_24h || 0,
+      marketData.market_cap || 0
+    ).run()
+    
+    // 3. Générer une nouvelle prédiction TimesFM
+    const prediction = await timesFM.predictNextHours('ETHUSDT', 24, currentPrice)
+    
+    // 4. Sauvegarder la prédiction
+    await c.env.DB.prepare(`
+      INSERT INTO predictions 
+      (timestamp, symbol, horizon_hours, predicted_price, predicted_return, confidence_score, quantile_10, quantile_90)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      prediction.symbol,
+      prediction.horizon_hours,
+      prediction.predicted_price,
+      prediction.predicted_return,
+      prediction.confidence_score,
+      prediction.quantile_10,
+      prediction.quantile_90
+    ).run()
+    
+    return c.json({
+      success: true,
+      message: 'Market data and prediction updated successfully',
+      current_price: currentPrice,
+      prediction: prediction,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Market data update error:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Market data update failed'
+    }, 500)
+  }
+})
+
+// Tâche complète d'automatisation (données + signal + trading)
+app.post('/api/admin/run-automation', async (c) => {
+  try {
+    const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+    const timesFM = new TimesFMPredictor(c.env.DB)
+    const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+    
+    // 1. Mettre à jour les données de marché
+    const currentPrice = await coinGecko.getCurrentETHPrice()
+    const marketData = await coinGecko.getEnhancedMarketData()
+    
+    if (!currentPrice) {
+      throw new Error('Could not fetch current ETH price')
+    }
+    
+    // 2. Sauvegarder les données de marché
+    await c.env.DB.prepare(`
+      INSERT OR REPLACE INTO market_data 
+      (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, market_cap)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      new Date().toISOString(),
+      'ETHUSDT',
+      '1h',
+      marketData.open_24h || currentPrice,
+      marketData.high_24h || currentPrice,
+      marketData.low_24h || currentPrice,
+      currentPrice,
+      marketData.volume_24h || 0,
+      marketData.market_cap || 0
+    ).run()
+    
+    // 3. Générer une prédiction TimesFM
+    const prediction = await timesFM.predictNextHours('ETHUSDT', 24, currentPrice)
+    
+    // 4. Générer et potentiellement exécuter un signal de trading
+    const signal = await tradingEngine.generateSignal('ETHUSDT')
+    
+    let trade = null
+    if (signal.action !== 'hold') {
+      trade = await tradingEngine.executePaperTrade(signal)
+    }
+    
+    // 5. Vérifier les positions ouvertes (stop loss/take profit)
+    await tradingEngine.checkStopLossAndTakeProfit(currentPrice)
+    
+    return c.json({
+      success: true,
+      message: 'Full automation cycle completed',
+      current_price: currentPrice,
+      prediction: prediction,
+      signal: signal,
+      trade: trade,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Automation error:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Automation cycle failed'
+    }, 500)
+  }
+})
+
+// ===============================
+// PAGE PRINCIPALE
+// ===============================
+
+app.get('/', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Multi-Crypto Trader Pro - ETH & BTC Analysis with TimesFM</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <link href="/static/style.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-900 text-white min-h-screen">
+        <div id="app" class="container mx-auto px-4 py-8">
+            <div class="text-center py-8">
+                <i class="fas fa-chart-line text-6xl text-green-400 mb-4"></i>
+                <h1 class="text-4xl font-bold mb-2">Multi-Crypto Trader Pro</h1>
+                <p class="text-gray-400 text-lg mb-8">ETH & BTC Analysis with TimesFM & CoinGecko Pro</p>
+                <div id="loading" class="text-center">
+                    <i class="fas fa-spinner fa-spin text-2xl text-blue-400"></i>
+                    <p class="mt-2">Loading dashboard...</p>
+                </div>
+            </div>
+            
+            <!-- Dashboard content injected by JavaScript -->
+            <div id="dashboard" class="hidden">
+                <!-- Dynamic dashboard content -->
+            </div>
+        </div>
+        
+        <script src="/static/app-multi-crypto.js"></script>
+    </body>
+    </html>
+  `)
+})
+
+export default app
