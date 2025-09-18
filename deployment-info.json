@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-09-18T12:00:11.234Z",
+  "targetUrl": "https://eth-trader-v2.pages.dev",
+  "repository": "https://github.com/benjaduval/eth-trader",
+  "branch": "main",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "environmentVariables": {
+    "COINGECKO_API_KEY": "À configurer",
+    "TRADING_MODE": "paper",
+    "NODE_ENV": "production"
+  },
+  "uptimeRobotCompatible": true,
+  "endpoints": [
+    "/api/market/ETH",
+    "/api/market/BTC",
+    "/api/predictions/ETH",
+    "/api/predictions/BTC",
+    "/api/portfolio",
+    "/api/health"
+  ]
+}
