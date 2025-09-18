@@ -90,8 +90,13 @@ class EthereumAITradingTerminal {
             
             this.renderEthereumAITerminal(enhancedDashboard);
             
-            loading.classList.add('hidden');
-            dashboard.classList.remove('hidden');
+            // Forcer la transition après rendu
+            setTimeout(() => {
+                loading.style.display = 'none';
+                dashboard.classList.remove('hidden');
+                dashboard.style.display = 'block';
+                console.log('🎯 Interface complète affichée - onglets ETH/BTC visibles');
+            }, 100);
             
         } catch (error) {
             console.error('Erreur chargement terminal:', error);
@@ -120,6 +125,19 @@ class EthereumAITradingTerminal {
         
         // Initialiser les composants spécialisés
         this.initializeEthereumAIComponents(dashboard);
+        
+        // Vérifier que les onglets sont visibles
+        setTimeout(() => {
+            const ethTab = document.getElementById('eth-tab');
+            const btcTab = document.getElementById('btc-tab');
+            if (ethTab && btcTab) {
+                console.log('✅ Onglets ETH/BTC trouvés et visibles');
+                console.log('📍 Position ETH tab:', ethTab.getBoundingClientRect());
+                console.log('📍 Position BTC tab:', btcTab.getBoundingClientRect());
+            } else {
+                console.error('❌ Onglets ETH/BTC manquants !');
+            }
+        }, 200);
     }
     
     generateEthereumAITerminalHTML(dashboard) {
@@ -307,7 +325,7 @@ class EthereumAITradingTerminal {
                         Complete TimesFM Results (${predictions.length})
                     </h3>
                     <div class="text-xs text-gray-400">
-                        Seuil: Confidence > 59%
+                        Seuil Trading: Confidence > 59% ✅ | Actuel: ${predictions.length > 0 ? (predictions[0].confidence_score * 100).toFixed(1) + '%' : 'N/A'}
                     </div>
                 </div>
                 

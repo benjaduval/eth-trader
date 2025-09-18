@@ -1561,9 +1561,14 @@ app.get('/', (c) => {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .crypto-tab.active {
-            background: linear-gradient(135deg, rgb(139 69 199 / 0.3), rgb(59 130 246 / 0.3));
-            border-color: rgb(139 69 199 / 0.5);
-            color: rgb(196 181 253);
+            background: linear-gradient(135deg, rgb(139 69 199 / 0.5), rgb(59 130 246 / 0.5)) !important;
+            border-color: rgb(139 69 199 / 0.8) !important;
+            color: rgb(255 255 255) !important;
+            box-shadow: 0 0 20px rgb(139 69 199 / 0.3);
+            transform: scale(1.05);
+        }
+        .crypto-tab:hover {
+            transform: scale(1.02);
         }
         .predictions-scroll::-webkit-scrollbar {
             width: 6px;
@@ -1605,9 +1610,9 @@ app.get('/', (c) => {
                         <div class="text-2xl eth-glow">⚡</div>
                         <div>
                             <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
-                                Ethereum AI Trading Terminal
+                                Multi-Crypto AI Trading Terminal
                             </h1>
-                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System</p>
+                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System - ETH & BTC</p>
                         </div>
                     </div>
                     
@@ -1616,12 +1621,12 @@ app.get('/', (c) => {
                         <!-- ETH/BTC Tabs -->
                         <div class="flex items-center space-x-2">
                             <button onclick="app.switchCrypto('ETH')" id="eth-tab" 
-                                class="crypto-tab active bg-gradient-to-r from-purple-500/30 to-blue-500/30 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/50 text-sm text-purple-200 font-medium hover:border-purple-400 transition-all">
-                                ⚡ Ethereum
+                                class="crypto-tab active bg-gradient-to-r from-purple-500/30 to-blue-500/30 backdrop-blur-sm px-6 py-3 rounded-xl border border-purple-500/50 text-lg text-purple-200 font-bold hover:border-purple-400 transition-all shadow-lg">
+                                ⚡ ETHEREUM
                             </button>
                             <button onclick="app.switchCrypto('BTC')" id="btc-tab" 
-                                class="crypto-tab bg-gradient-to-r from-gray-500/20 to-gray-600/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-500/30 text-sm text-gray-400 font-medium hover:border-gray-400 transition-all">
-                                ₿ Bitcoin
+                                class="crypto-tab bg-gradient-to-r from-gray-500/20 to-gray-600/20 backdrop-blur-sm px-6 py-3 rounded-xl border border-gray-500/30 text-lg text-gray-400 font-bold hover:border-gray-400 transition-all shadow-lg">
+                                ₿ BITCOIN
                             </button>
                         </div>
                         <div class="flex items-center space-x-1">
