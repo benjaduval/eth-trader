@@ -127,6 +127,41 @@ export class PaperTradingEngine {
     }
   }
 
+  // Méthode pour vérifier si une position doit être fermée (stop loss/take profit)
+  async shouldClosePosition(position: PaperTrade, currentPrice: number): Promise<{close: boolean, reason?: string}> {
+    try {
+      if (position.status !== 'open') {
+        return { close: false }
+      }
+      
+      // Vérifier stop loss
+      if (position.stop_loss_price) {
+        if (position.side === 'long' && currentPrice <= position.stop_loss_price) {
+          return { close: true, reason: 'stop_loss' }
+        }
+        if (position.side === 'short' && currentPrice >= position.stop_loss_price) {
+          return { close: true, reason: 'stop_loss' }
+        }
+      }
+      
+      // Vérifier take profit
+      if (position.take_profit_price) {
+        if (position.side === 'long' && currentPrice >= position.take_profit_price) {
+          return { close: true, reason: 'take_profit' }
+        }
+        if (position.side === 'short' && currentPrice <= position.take_profit_price) {
+          return { close: true, reason: 'take_profit' }
+        }
+      }
+      
+      return { close: false }
+      
+    } catch (error) {
+      console.error('Error checking position closure conditions:', error)
+      return { close: false }
+    }
+  }
+
   // Nouvelle méthode pour gérer les positions à faible confiance
   async checkLowConfidencePositions(symbol: string, confidence: number): Promise<void> {
     try {

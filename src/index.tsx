@@ -1622,6 +1622,86 @@ app.post('/api/admin/update-market-data', async (c) => {
   }
 })
 
+// Route de vérification des positions (appelée toutes les 5 minutes par UptimeRobot)
+app.get('/api/trading/check-positions', async (c) => {
+  try {
+    console.log('🔍 Starting 5-minute position check...')
+    
+    const results = {
+      ETH: { positions_checked: 0, positions_closed: 0, error: null as string | null },
+      BTC: { positions_checked: 0, positions_closed: 0, error: null as string | null },
+      timestamp: new Date().toISOString()
+    }
+    
+    // Traiter ETH et BTC séparément
+    for (const crypto of ['ETH', 'BTC']) {
+      try {
+        const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+        const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+        
+        // Récupérer le prix actuel
+        const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto)
+        if (!currentPrice) {
+          throw new Error(`Could not fetch ${crypto} price`)
+        }
+        
+        const symbol = crypto === 'ETH' ? 'ETHUSDT' : 'BTCUSDT'
+        
+        // Récupérer les positions ouvertes pour ce crypto
+        const openPositions = await tradingEngine.getActivePositions(symbol)
+        results[crypto as 'ETH' | 'BTC'].positions_checked = openPositions.length
+        
+        // Vérifier stop loss/take profit pour chaque position
+        let closedCount = 0
+        for (const position of openPositions) {
+          if (position.id) {
+            const shouldClose = await tradingEngine.shouldClosePosition(position, currentPrice)
+            if (shouldClose.close) {
+              await tradingEngine.closePosition(position.id, currentPrice, shouldClose.reason || 'automated_check')
+              closedCount++
+            }
+          }
+        }
+        
+        results[crypto as 'ETH' | 'BTC'].positions_closed = closedCount
+        
+        if (closedCount > 0) {
+          console.log(`💰 ${crypto}: Closed ${closedCount}/${openPositions.length} positions`)
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error checking ${crypto} positions:`, error)
+        results[crypto as 'ETH' | 'BTC'].error = error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+    
+    const totalChecked = results.ETH.positions_checked + results.BTC.positions_checked
+    const totalClosed = results.ETH.positions_closed + results.BTC.positions_closed
+    
+    console.log(`✅ Position check completed: ${totalClosed}/${totalChecked} positions closed`)
+    
+    return c.json({
+      success: true,
+      message: `Position check completed - ${totalClosed}/${totalChecked} positions closed`,
+      results,
+      summary: {
+        total_positions: totalChecked,
+        closed_positions: totalClosed,
+        check_interval: '5 minutes'
+      },
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Position check failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Position check failed',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Route d'automatisation pour UptimeRobot (appelée toutes les heures)
 app.get('/api/automation/hourly', async (c) => {
   try {
