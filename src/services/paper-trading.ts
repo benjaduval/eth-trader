@@ -605,9 +605,9 @@ export class PaperTradingEngine {
   }
 
   /**
-   * Évalue si une position doit être fermée selon les critères intelligents
+   * Évalue si une position doit être fermée selon les critères intelligents (legacy)
    */
-  shouldClosePosition(position: any, prediction: TimesFMPrediction, currentPrice: number): {
+  shouldClosePositionWithPrediction(position: any, prediction: TimesFMPrediction, currentPrice: number): {
     shouldClose: boolean;
     reasons: string[];
   } {
@@ -705,7 +705,7 @@ export class PaperTradingEngine {
         const trade = position as any;
         
         // Évaluer si la position doit être fermée
-        const evaluation = this.shouldClosePosition(trade, prediction, currentPrice);
+        const evaluation = this.shouldClosePositionWithPrediction(trade, prediction, currentPrice);
         
         if (evaluation.shouldClose) {
           try {

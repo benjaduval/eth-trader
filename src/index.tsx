@@ -22,8 +22,38 @@ const app = new Hono<Env>()
 app.use('/api/*', cors({
   origin: '*', // En production, spécifier les domaines autorisés
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization']
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Auth-Token']
 }))
+
+// Middleware d'authentification pour les routes protégées (sauf health, automation et auth)
+app.use('/api/*', async (c, next) => {
+  const path = c.req.path;
+  
+  // Routes publiques (non protégées)
+  const publicRoutes = [
+    '/api/health',
+    '/api/automation/hourly',
+    '/api/trading/check-positions',
+    '/api/auth/verify'
+  ];
+  
+  // Si c'est une route publique, passer
+  if (publicRoutes.some(route => path === route)) {
+    return next();
+  }
+  
+  // Pour les autres routes, vérifier l'auth token dans les headers
+  const authToken = c.req.header('X-Auth-Token');
+  if (authToken !== '12345') {
+    return c.json({
+      success: false,
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    }, 401);
+  }
+  
+  return next();
+})
 
 // Servir les fichiers statiques depuis public/
 app.use('/static/*', serveStatic({ root: './public' }))
@@ -1941,6 +1971,196 @@ app.post('/api/admin/initialize-both-cryptos', async (c) => {
 // PAGE PRINCIPALE
 // ===============================
 
+// Route de login
+app.get('/login', (c) => {
+  return c.html(`
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETH Trader Pro - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e40af 100%);
+            min-height: 100vh;
+        }
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
+        }
+        .login-container {
+            animation: fadeInUp 0.8s ease-out;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .code-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(147, 197, 253, 0.3);
+            transition: all 0.3s ease;
+        }
+        .code-input:focus {
+            border-color: rgba(147, 197, 253, 0.8);
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(147, 197, 253, 0.3);
+        }
+        .login-btn {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            transition: all 0.3s ease;
+        }
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+        .error-message {
+            animation: shake 0.5s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="login-container w-full max-w-md px-6">
+        <!-- Logo & Title -->
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">⚡</div>
+            <h1 class="text-3xl font-bold text-white mb-2">ETH Trader Pro</h1>
+            <p class="text-blue-200">Neural Network Powered Trading</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="glass-morphism rounded-2xl p-8">
+            <form id="loginForm" class="space-y-6">
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-semibold text-white mb-2">Accès Sécurisé</h2>
+                    <p class="text-gray-300 text-sm">Entrez le code d'accès pour continuer</p>
+                </div>
+
+                <div>
+                    <label for="accessCode" class="block text-sm font-medium text-gray-200 mb-2">
+                        <i class="fas fa-key mr-2"></i>Code d'Accès
+                    </label>
+                    <input 
+                        type="password" 
+                        id="accessCode" 
+                        name="accessCode"
+                        class="code-input w-full px-4 py-3 rounded-lg text-white placeholder-gray-400 focus:outline-none"
+                        placeholder="Entrez votre code d'accès"
+                        maxlength="10"
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+
+                <div id="errorMessage" class="hidden error-message bg-red-500/20 border border-red-500/40 text-red-200 px-4 py-2 rounded-lg text-sm">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Code d'accès incorrect
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="login-btn w-full py-3 px-6 rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                >
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    Accéder au Dashboard
+                </button>
+
+                <div class="text-center text-xs text-gray-400 mt-4">
+                    <i class="fas fa-shield-alt mr-1"></i>
+                    Connexion sécurisée SSL
+                </div>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-6 text-gray-400 text-xs">
+            <p>ETH Trader Pro v3.1.0 • Powered by TimesFM & CoinGecko Pro</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const accessCode = document.getElementById('accessCode').value;
+            const errorMessage = document.getElementById('errorMessage');
+            
+            if (accessCode === '12345') {
+                // Stocker l'authentification
+                sessionStorage.setItem('eth_trader_authenticated', 'true');
+                sessionStorage.setItem('eth_trader_login_time', new Date().getTime().toString());
+                
+                // Rediriger vers le dashboard
+                window.location.href = '/';
+            } else {
+                // Afficher l'erreur
+                errorMessage.classList.remove('hidden');
+                document.getElementById('accessCode').value = '';
+                document.getElementById('accessCode').focus();
+                
+                // Cacher l'erreur après 3 secondes
+                setTimeout(() => {
+                    errorMessage.classList.add('hidden');
+                }, 3000);
+            }
+        });
+
+        // Focus automatique sur le champ de code
+        document.getElementById('accessCode').focus();
+
+        // Gérer l'entrée avec Enter
+        document.getElementById('accessCode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }
+        });
+    </script>
+</body>
+</html>
+  `)
+})
+
+// API pour vérifier l'authentification
+app.post('/api/auth/verify', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}))
+    const { code } = body
+    
+    if (code === '12345') {
+      return c.json({
+        success: true,
+        message: 'Authentication successful',
+        timestamp: new Date().toISOString()
+      })
+    } else {
+      return c.json({
+        success: false,
+        error: 'Invalid access code'
+      }, 401)
+    }
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: 'Authentication failed'
+    }, 500)
+  }
+})
+
 // Route pour servir l'interface web à la racine
 app.get('/', (c) => {
   return c.html(`
@@ -2024,9 +2244,19 @@ app.get('/', (c) => {
                                 ₿ BITCOIN
                             </button>
                         </div>
-                        <div class="flex items-center space-x-1">
-                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span class="text-xs text-gray-400">Live</span>
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-1">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-xs text-gray-400">Live</span>
+                            </div>
+                            <button 
+                                onclick="logout()" 
+                                class="bg-red-500/20 hover:bg-red-500/30 text-red-200 px-3 py-1 rounded-lg text-xs transition-all duration-200 border border-red-500/30 hover:border-red-500/50"
+                                title="Déconnexion"
+                            >
+                                <i class="fas fa-sign-out-alt mr-1"></i>
+                                Logout
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2042,8 +2272,47 @@ app.get('/', (c) => {
     <!-- Scripts -->
     <script src="/static/ethereum-ai-terminal.js"></script>
     <script>
+        // Vérification d'authentification
+        function checkAuth() {
+            const isAuthenticated = sessionStorage.getItem('eth_trader_authenticated');
+            const loginTime = sessionStorage.getItem('eth_trader_login_time');
+            
+            if (!isAuthenticated || isAuthenticated !== 'true') {
+                window.location.href = '/login';
+                return false;
+            }
+            
+            // Vérifier si la session n'est pas expirée (24 heures)
+            if (loginTime) {
+                const currentTime = new Date().getTime();
+                const sessionAge = currentTime - parseInt(loginTime);
+                const maxAge = 24 * 60 * 60 * 1000; // 24 heures en millisecondes
+                
+                if (sessionAge > maxAge) {
+                    sessionStorage.removeItem('eth_trader_authenticated');
+                    sessionStorage.removeItem('eth_trader_login_time');
+                    window.location.href = '/login';
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        // Fonction de déconnexion
+        function logout() {
+            sessionStorage.removeItem('eth_trader_authenticated');
+            sessionStorage.removeItem('eth_trader_login_time');
+            window.location.href = '/login';
+        }
+
         // Initialiser l'Ethereum AI Trading Terminal
         document.addEventListener('DOMContentLoaded', () => {
+            // Vérifier l'authentification avant de charger l'app
+            if (!checkAuth()) {
+                return;
+            }
+
             // Animation de chargement progressive
             const loadingSteps = [
                 { text: 'Initialisation des réseaux neuronaux...', delay: 500 },
