@@ -97,12 +97,31 @@ export class CoinGeckoService {
       });
     }
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        'x-cg-pro-api-key': this.config.apiKey,
-        'accept': 'application/json'
+    // Construire headers avec fallback pour API gratuite
+    const headers: Record<string, string> = {
+      'accept': 'application/json',
+      'User-Agent': 'Multi-Crypto-AI-Trader/3.1.0'
+    };
+
+    // Ajouter clé API seulement si disponible et non demo
+    if (this.config.apiKey && this.config.apiKey !== 'demo' && this.config.apiKey !== 'undefined') {
+      headers['x-cg-pro-api-key'] = this.config.apiKey;
+    }
+
+    let response = await fetch(url.toString(), { headers });
+
+    // Si 401 Unauthorized avec Pro API, essayer l'API publique gratuite
+    if (response.status === 401 && this.config.baseUrl.includes('pro-api')) {
+      console.warn('🔄 CoinGecko Pro API unauthorized, falling back to free API...');
+      const freeUrl = url.toString().replace('pro-api.coingecko.com/api/v3', 'api.coingecko.com/api/v3');
+      delete headers['x-cg-pro-api-key'];
+      
+      response = await fetch(freeUrl, { headers });
+      
+      if (response.ok) {
+        console.log('✅ Successfully using CoinGecko free API');
       }
-    });
+    }
 
     if (response.status === 429) {
       // Rate limit hit - wait and retry

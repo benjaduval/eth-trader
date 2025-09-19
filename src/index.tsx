@@ -1305,9 +1305,12 @@ app.post('/api/admin/initialize-massive-data', async (c) => {
       }, 429)
     }
     
-    // Nettoyer la base existante d'abord
-    await c.env.DB.prepare(`DELETE FROM market_data WHERE symbol = 'ETHUSDT'`).run()
-    console.log('🧹 Cleared existing market data')
+    const crypto = c.req.query('crypto') || 'ETH'
+    const symbol = crypto === 'BTC' ? 'BTCUSDT' : 'ETHUSDT'
+    
+    // Nettoyer la base existante d'abord pour cette crypto
+    await c.env.DB.prepare(`DELETE FROM market_data WHERE symbol = ?`).bind(symbol).run()
+    console.log(`🧹 Cleared existing market data for ${crypto}`)
     
     // Approche alternative : utiliser données existantes + compléter avec points actuels
     let historicalData = []
@@ -1319,9 +1322,9 @@ app.post('/api/admin/initialize-massive-data', async (c) => {
       console.warn('CoinGecko historical data failed, using current price approach:', coinGeckoError)
       
       // Fallback : générer des points basés sur le prix actuel
-      const currentPrice = await coinGecko.getCurrentETHPrice()
+      const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto.toUpperCase())
       if (!currentPrice) {
-        throw new Error('Cannot get current price for initialization')
+        throw new Error(`Cannot get current price for ${crypto} initialization`)
       }
       
       console.log(`🔄 Generating ${targetPoints} data points from current price: $${currentPrice}`)
@@ -1387,9 +1390,10 @@ app.post('/api/admin/initialize-massive-data', async (c) => {
           await c.env.DB.prepare(`
             INSERT INTO market_data 
             (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, created_at)
-            VALUES (?, 'ETHUSDT', '1h', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, '1h', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           `).bind(
             dataPoint.timestamp,
+            symbol,
             dataPoint.open,
             dataPoint.high,
             dataPoint.low,
@@ -1678,6 +1682,68 @@ app.post('/api/admin/run-automation', async (c) => {
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Automation cycle failed'
+    }, 500)
+  }
+})
+
+// Initialiser les données pour ETH et BTC automatiquement
+app.post('/api/admin/initialize-both-cryptos', async (c) => {
+  try {
+    console.log('🚀 Initializing data for both ETH and BTC...')
+    
+    const results = {
+      ETH: null as any,
+      BTC: null as any,
+      errors: [] as string[]
+    }
+    
+    // Initialiser ETH
+    try {
+      console.log('📊 Initializing ETH data...')
+      const ethResponse = await fetch(`${c.req.url.replace('/api/admin/initialize-both-cryptos', '/api/admin/initialize-massive-data')}?crypto=ETH&points=450`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      results.ETH = await ethResponse.json()
+      console.log('✅ ETH data initialized')
+    } catch (error) {
+      const errorMsg = `ETH initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      results.errors.push(errorMsg)
+      console.error('❌ ETH initialization error:', error)
+    }
+    
+    // Attendre un peu pour éviter rate limits
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // Initialiser BTC
+    try {
+      console.log('📊 Initializing BTC data...')
+      const btcResponse = await fetch(`${c.req.url.replace('/api/admin/initialize-both-cryptos', '/api/admin/initialize-massive-data')}?crypto=BTC&points=450`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      results.BTC = await btcResponse.json()
+      console.log('✅ BTC data initialized')
+    } catch (error) {
+      const errorMsg = `BTC initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      results.errors.push(errorMsg)
+      console.error('❌ BTC initialization error:', error)
+    }
+    
+    return c.json({
+      success: results.errors.length === 0,
+      message: `Initialization completed for ETH and BTC`,
+      results,
+      errors_count: results.errors.length,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Dual crypto initialization failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Dual initialization failed',
+      timestamp: new Date().toISOString()
     }, 500)
   }
 })
