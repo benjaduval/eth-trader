@@ -2120,8 +2120,33 @@ app.get('/login', (c) => {
             }
         });
 
-        // Focus automatique sur le champ de code
-        document.getElementById('accessCode').focus();
+        // Vérifier si déjà authentifié au chargement de la page
+        document.addEventListener('DOMContentLoaded', function() {
+            const isAuthenticated = sessionStorage.getItem('eth_trader_authenticated');
+            const loginTime = sessionStorage.getItem('eth_trader_login_time');
+            
+            if (isAuthenticated === 'true' && loginTime) {
+                const currentTime = new Date().getTime();
+                const sessionAge = currentTime - parseInt(loginTime);
+                const maxAge = 24 * 60 * 60 * 1000; // 24 heures
+                
+                // Si la session est encore valide, proposer de retourner au dashboard
+                if (sessionAge <= maxAge) {
+                    const returnToDashboard = confirm('Vous êtes déjà connecté. Voulez-vous retourner au dashboard ?');
+                    if (returnToDashboard) {
+                        window.location.href = '/';
+                        return;
+                    } else {
+                        // L'utilisateur veut se reconnecter, nettoyer la session
+                        sessionStorage.removeItem('eth_trader_authenticated');
+                        sessionStorage.removeItem('eth_trader_login_time');
+                    }
+                }
+            }
+            
+            // Focus automatique sur le champ de code
+            document.getElementById('accessCode').focus();
+        });
 
         // Gérer l'entrée avec Enter
         document.getElementById('accessCode').addEventListener('keypress', function(e) {
@@ -2249,14 +2274,24 @@ app.get('/', (c) => {
                                 <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                                 <span class="text-xs text-gray-400">Live</span>
                             </div>
-                            <button 
-                                onclick="logout()" 
-                                class="bg-red-500/20 hover:bg-red-500/30 text-red-200 px-3 py-1 rounded-lg text-xs transition-all duration-200 border border-red-500/30 hover:border-red-500/50"
-                                title="Déconnexion"
-                            >
-                                <i class="fas fa-sign-out-alt mr-1"></i>
-                                Logout
-                            </button>
+                            <div class="flex items-center space-x-2">
+                                <button 
+                                    onclick="exitToLogin()" 
+                                    class="bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 px-3 py-1 rounded-lg text-xs transition-all duration-200 border border-gray-500/30 hover:border-gray-500/50"
+                                    title="Retour à l'écran de login"
+                                >
+                                    <i class="fas fa-times mr-1"></i>
+                                    Exit
+                                </button>
+                                <button 
+                                    onclick="logout()" 
+                                    class="bg-red-500/20 hover:bg-red-500/30 text-red-200 px-3 py-1 rounded-lg text-xs transition-all duration-200 border border-red-500/30 hover:border-red-500/50"
+                                    title="Déconnexion complète"
+                                >
+                                    <i class="fas fa-sign-out-alt mr-1"></i>
+                                    Logout
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2303,6 +2338,11 @@ app.get('/', (c) => {
         function logout() {
             sessionStorage.removeItem('eth_trader_authenticated');
             sessionStorage.removeItem('eth_trader_login_time');
+            window.location.href = '/login';
+        }
+
+        // Fonction pour retourner à l'écran de login (sans déconnecter)
+        function exitToLogin() {
             window.location.href = '/login';
         }
 
