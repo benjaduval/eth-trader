@@ -67,7 +67,9 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '3.1.0',
+    version: '3.2.0-FULL-DEPLOYMENT',
+    deployment_check: 'FORCED_UPDATE_' + Date.now(),
+    features: ['login_system', 'timesfm_enhanced', 'uptimerobot_endpoints', 'full_deployment'],
     services: {
       database: !!c.env.DB,
       coingecko_api: !!c.env.COINGECKO_API_KEY
@@ -2194,7 +2196,7 @@ app.get('/', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ethereum AI Trading Terminal - Neural Network Powered Trading</title>
+    <title>ETH Trader Pro - Login Required (v3.2)</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
