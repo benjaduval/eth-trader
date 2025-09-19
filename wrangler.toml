@@ -1,0 +1,34 @@
+name = "eth-trader-v2"
+main = "dist/_worker.js"
+compatibility_date = "2025-09-18"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "npm run build"
+
+# Variables d'environnement pour production
+[vars]
+TRADING_MODE = "paper"
+INITIAL_BALANCE = "10000"
+FEES_BPS_PER_SIDE = "8"
+VOLATILITY_TARGET = "0.30"
+NODE_ENV = "production"
+
+# Configuration D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "eth-trader-production"
+database_id = "568a62ac-792b-4622-99ae-48f24b00f94c"
+
+# Routes pour les endpoints API
+[[routes]]
+pattern = "eth-trader-v2.pages.dev/*"
+zone_name = "pages.dev"
+
+# Configuration pour Pages
+[env.production]
+vars = { TRADING_MODE = "paper", NODE_ENV = "production" }
+
+# Limits pour production
+[limits]
+cpu_ms = 50000
