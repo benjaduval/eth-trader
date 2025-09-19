@@ -31,7 +31,7 @@ export class PaperTradingEngine {
     };
   }
 
-  async generateSignal(symbol: string = 'ETHUSDT'): Promise<TradingSignal> {
+  async generateSignal(symbol: string = 'ETHUSDT', currentPrice?: number): Promise<TradingSignal> {
     try {
       // Récupérer la dernière prédiction depuis la base
       const lastPrediction = await this.db.prepare(`
@@ -45,15 +45,18 @@ export class PaperTradingEngine {
         throw new Error('No recent prediction available');
       }
 
-      // Récupérer le prix actuel depuis la base aussi
-      const latestMarketData = await this.db.prepare(`
-        SELECT close_price FROM market_data 
-        WHERE symbol = ? 
-        ORDER BY timestamp DESC 
-        LIMIT 1
-      `).bind(symbol).first() as any;
+      // Utiliser le prix fourni en paramètre ou récupérer depuis la base de données
+      let priceToUse = currentPrice;
+      if (!priceToUse) {
+        const latestMarketData = await this.db.prepare(`
+          SELECT close_price FROM market_data 
+          WHERE symbol = ? 
+          ORDER BY timestamp DESC 
+          LIMIT 1
+        `).bind(symbol).first() as any;
 
-      const currentPrice = latestMarketData?.close_price || lastPrediction.predicted_price;
+        priceToUse = latestMarketData?.close_price || lastPrediction.predicted_price;
+      }
       
       const predictedReturn = lastPrediction.predicted_return;
       const confidence = lastPrediction.confidence_score;
@@ -69,7 +72,7 @@ export class PaperTradingEngine {
       
       // Calculer la différence de prix prédite
       const predictedPrice = lastPrediction.predicted_price;
-      const priceDifference = Math.abs(predictedPrice - currentPrice) / currentPrice;
+      const priceDifference = Math.abs(predictedPrice - priceToUse) / priceToUse;
       
       // NOUVELLE LOGIQUE : Différence de prix + confiance
       if (confidence >= minConfidence && priceDifference >= minReturnThreshold) {
@@ -92,17 +95,17 @@ export class PaperTradingEngine {
 
       // Calculer les niveaux de stop loss et take profit
       const stopLoss = action === 'buy' 
-        ? currentPrice * (1 - this.config.stopLossPercent / 100)
-        : currentPrice * (1 + this.config.stopLossPercent / 100);
+        ? priceToUse * (1 - this.config.stopLossPercent / 100)
+        : priceToUse * (1 + this.config.stopLossPercent / 100);
 
       const takeProfit = action === 'buy'
-        ? currentPrice * (1 + this.config.takeProfitPercent / 100)
-        : currentPrice * (1 - this.config.takeProfitPercent / 100);
+        ? priceToUse * (1 + this.config.takeProfitPercent / 100)
+        : priceToUse * (1 - this.config.takeProfitPercent / 100);
 
       return {
         action,
         confidence,
-        price: currentPrice,
+        price: priceToUse,
         timestamp: new Date(),
         symbol: symbol,
         predicted_return: predictedReturn,

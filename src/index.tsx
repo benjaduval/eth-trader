@@ -469,9 +469,9 @@ app.post('/api/trading/signal', async (c) => {
     const predictor = new TimesFMPredictor(c.env.DB)
     const prediction = await predictor.predictNextHours(symbol, 24, currentPrice)
     
-    // Générer signal de trading
+    // Générer signal de trading avec le prix actuel
     const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
-    const signal = await tradingEngine.generateSignal(symbol)
+    const signal = await tradingEngine.generateSignal(symbol, currentPrice)
     
     // Exécuter le trade si le signal n'est pas "hold"
     let trade = null
@@ -1618,6 +1618,115 @@ app.post('/api/admin/update-market-data', async (c) => {
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Market data update failed'
+    }, 500)
+  }
+})
+
+// Route d'automatisation pour UptimeRobot (appelée toutes les heures)
+app.get('/api/automation/hourly', async (c) => {
+  try {
+    console.log('🕐 Starting hourly automation cycle...')
+    
+    const results = {
+      ETH: { success: false, error: null as string | null, data: null as any },
+      BTC: { success: false, error: null as string | null, data: null as any },
+      timestamp: new Date().toISOString()
+    }
+    
+    // Traiter ETH et BTC en séquence pour éviter les rate limits
+    for (const crypto of ['ETH', 'BTC']) {
+      try {
+        console.log(`🔄 Processing ${crypto}...`)
+        
+        const coinGecko = new CoinGeckoService(c.env.COINGECKO_API_KEY)
+        const timesFM = new TimesFMPredictor(c.env.DB)
+        const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+        
+        // 1. Mettre à jour les données de marché
+        const currentPrice = await coinGecko.getCurrentCryptoPrice(crypto)
+        if (!currentPrice) {
+          throw new Error(`Could not fetch ${crypto} price`)
+        }
+        
+        const symbol = crypto === 'ETH' ? 'ETHUSDT' : 'BTCUSDT'
+        
+        // 2. Ajouter le nouveau point de données
+        await c.env.DB.prepare(`
+          INSERT OR REPLACE INTO market_data 
+          (timestamp, symbol, timeframe, open_price, high_price, low_price, close_price, volume, created_at)
+          VALUES (datetime('now'), ?, '1h', ?, ?, ?, ?, 0, datetime('now'))
+        `).bind(symbol, currentPrice, currentPrice, currentPrice, currentPrice).run()
+        
+        // 3. Générer prédiction
+        const prediction = await timesFM.predictNextHours(symbol, 24, currentPrice)
+        
+        // 4. Générer et potentiellement exécuter signal
+        const signal = await tradingEngine.generateSignal(symbol, currentPrice)
+        
+        let trade = null
+        if (signal.action !== 'hold') {
+          trade = await tradingEngine.executePaperTrade(signal)
+        }
+        
+        // 5. Vérifier les positions pour stop loss/take profit
+        await tradingEngine.checkStopLossAndTakeProfit(currentPrice)
+        
+        results[crypto as 'ETH' | 'BTC'] = {
+          success: true,
+          error: null,
+          data: {
+            price: currentPrice,
+            prediction: {
+              predicted_return: prediction.predicted_return,
+              confidence: prediction.confidence_score
+            },
+            signal: {
+              action: signal.action,
+              confidence: signal.confidence
+            },
+            trade: trade ? { id: trade.id, side: trade.side, entry_price: trade.entry_price } : null
+          }
+        }
+        
+        console.log(`✅ ${crypto} processed successfully`)
+        
+        // Pause courte entre les cryptos
+        if (crypto === 'ETH') {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error processing ${crypto}:`, error)
+        results[crypto as 'ETH' | 'BTC'] = {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          data: null
+        }
+      }
+    }
+    
+    const successCount = Object.values(results).filter(r => r.success).length
+    console.log(`🏁 Hourly automation completed: ${successCount}/2 cryptos processed successfully`)
+    
+    return c.json({
+      success: successCount > 0,
+      message: `Hourly automation cycle completed - ${successCount}/2 cryptos processed`,
+      results,
+      summary: {
+        total_cryptos: 2,
+        successful: successCount,
+        failed: 2 - successCount
+      },
+      timestamp: new Date().toISOString(),
+      next_run: 'In 1 hour'
+    })
+    
+  } catch (error) {
+    console.error('❌ Hourly automation failed:', error)
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Automation cycle failed',
+      timestamp: new Date().toISOString()
     }, 500)
   }
 })
