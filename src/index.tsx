@@ -68,7 +68,8 @@ app.get('/api/health', (c) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     version: '3.2.0-FULL-DEPLOYMENT',
-    deployment_check: 'FORCED_UPDATE_' + Date.now(),
+    deployment_check: 'MULTI_CRYPTO_UPDATE_' + Date.now(),
+    project_name: 'multi-crypto-ai-trader',
     features: ['login_system', 'timesfm_enhanced', 'uptimerobot_endpoints', 'full_deployment'],
     services: {
       database: !!c.env.DB,
