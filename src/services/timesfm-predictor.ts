@@ -208,55 +208,97 @@ export class TimesFMPredictor {
     indicators: TechnicalIndicators,
     trend: any
   ): TimesFMPrediction {
-    // Logique de prédiction basée sur les indicateurs
+    // Logique de prédiction basée sur les indicateurs - VERSION AMÉLIORÉE
     let predictedReturn = 0;
     let confidence = 0.5; // Base confidence
+    let signalStrength = 0;
     
-    // Facteur RSI
-    if (indicators.rsi > 70) {
-      predictedReturn -= 0.02; // Surachat, baisse probable
+    // Facteur RSI - Plus réactif
+    if (indicators.rsi > 75) {
+      predictedReturn -= 0.025; // Surachat fort, baisse probable
+      confidence += 0.15;
+      signalStrength++;
+    } else if (indicators.rsi > 65) {
+      predictedReturn -= 0.015; // Surachat modéré
       confidence += 0.1;
-    } else if (indicators.rsi < 30) {
-      predictedReturn += 0.02; // Survente, hausse probable  
+      signalStrength += 0.5;
+    } else if (indicators.rsi < 25) {
+      predictedReturn += 0.025; // Survente forte, hausse probable  
+      confidence += 0.15;
+      signalStrength++;
+    } else if (indicators.rsi < 35) {
+      predictedReturn += 0.015; // Survente modérée
       confidence += 0.1;
+      signalStrength += 0.5;
     }
     
-    // Facteur EMA
+    // Facteur EMA - Plus sensible aux croisements
+    const emaSpread = (indicators.ema20 - indicators.ema50) / indicators.ema50;
     if (currentPrice > indicators.ema20 && indicators.ema20 > indicators.ema50) {
-      predictedReturn += 0.01; // Tendance haussière
-      confidence += 0.1;
+      predictedReturn += 0.015 + (emaSpread * 0.5); // Tendance haussière avec amplification
+      confidence += 0.12;
+      signalStrength++;
     } else if (currentPrice < indicators.ema20 && indicators.ema20 < indicators.ema50) {
-      predictedReturn -= 0.01; // Tendance baissière
-      confidence += 0.1;
+      predictedReturn -= 0.015 - (Math.abs(emaSpread) * 0.5); // Tendance baissière avec amplification
+      confidence += 0.12;
+      signalStrength++;
     }
     
-    // Facteur Bollinger Bands
+    // Facteur Bollinger Bands - Plus précis
+    const bollBandWidth = (indicators.bollingerUpper - indicators.bollingerLower) / currentPrice;
     if (currentPrice > indicators.bollingerUpper) {
-      predictedReturn -= 0.015; // Prix au-dessus de la bande supérieure
+      predictedReturn -= 0.02 * (1 + bollBandWidth); // Ajusté par largeur des bandes
+      confidence += 0.1;
+      signalStrength += 0.7;
     } else if (currentPrice < indicators.bollingerLower) {
-      predictedReturn += 0.015; // Prix en dessous de la bande inférieure
+      predictedReturn += 0.02 * (1 + bollBandWidth);
+      confidence += 0.1;
+      signalStrength += 0.7;
     }
     
-    // Facteur tendance
+    // Facteur tendance - Renforcé
     if (trend.direction === 'bullish') {
-      predictedReturn += trend.strength * 0.02;
-      confidence += 0.1;
+      predictedReturn += trend.strength * 0.03; // Augmenté de 0.02 à 0.03
+      confidence += 0.15;
+      signalStrength += trend.strength;
     } else if (trend.direction === 'bearish') {
-      predictedReturn -= trend.strength * 0.02;
-      confidence += 0.1;
+      predictedReturn -= trend.strength * 0.03;
+      confidence += 0.15;
+      signalStrength += trend.strength;
     }
     
-    // Facteur volatilité
-    const volAdjustment = Math.min(indicators.volatility * horizonHours / 24, 0.5);
-    predictedReturn *= (1 + volAdjustment);
+    // Facteur momentum - NOUVEAU
+    if (Math.abs(indicators.momentum) > 0.01) {
+      predictedReturn += indicators.momentum * 0.8; // Amplifier le momentum
+      confidence += Math.min(Math.abs(indicators.momentum) * 10, 0.1);
+      signalStrength += 0.5;
+    }
+    
+    // Facteur volatilité - Ajusté
+    const volAdjustment = Math.min(indicators.volatility * horizonHours / 24, 0.6);
+    predictedReturn *= (1 + volAdjustment * 0.8);
     
     // Ajuster selon l'horizon temporel
     const timeMultiplier = Math.sqrt(horizonHours / 24);
     predictedReturn *= timeMultiplier;
     
-    // Limiter les prédictions
-    predictedReturn = Math.max(-0.1, Math.min(0.1, predictedReturn));
-    confidence = Math.max(0.3, Math.min(0.9, confidence));
+    // Bonus de confiance basé sur la convergence des signaux
+    if (signalStrength >= 2) {
+      confidence += 0.15; // Bonus si plusieurs indicateurs convergent
+    } else if (signalStrength >= 1.5) {
+      confidence += 0.1;
+    }
+    
+    // Limiter les prédictions - PLAGE ÉLARGIE
+    predictedReturn = Math.max(-0.15, Math.min(0.15, predictedReturn));
+    confidence = Math.max(0.4, Math.min(0.95, confidence));
+    
+    // S'assurer qu'on génère des prédictions significatives
+    if (Math.abs(predictedReturn) < 0.005) {
+      // Si la prédiction est trop faible, utiliser le momentum comme guide
+      predictedReturn = indicators.momentum * 0.5;
+      predictedReturn = Math.max(-0.02, Math.min(0.02, predictedReturn));
+    }
     
     const predictedPrice = currentPrice * (1 + predictedReturn);
     
@@ -267,8 +309,8 @@ export class TimesFMPredictor {
       predicted_return: predictedReturn,
       confidence_score: confidence,
       horizon_hours: horizonHours,
-      quantile_10: predictedPrice * 0.95, // 5% de baisse max probable
-      quantile_90: predictedPrice * 1.05   // 5% de hausse max probable
+      quantile_10: predictedPrice * (1 - Math.abs(predictedReturn) * 0.7), // Plus dynamique
+      quantile_90: predictedPrice * (1 + Math.abs(predictedReturn) * 0.7)   // Plus dynamique
     };
   }
 

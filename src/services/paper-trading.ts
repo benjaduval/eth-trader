@@ -58,19 +58,36 @@ export class PaperTradingEngine {
       const predictedReturn = lastPrediction.predicted_return;
       const confidence = lastPrediction.confidence_score;
       
-      // Logique de génération de signal
+      // Logique de génération de signal - CRITÈRES MIS À JOUR
       let action: 'buy' | 'sell' | 'hold' = 'hold';
       
-      // Seuils basés sur la confiance et le retour prédit
-      const minConfidence = 0.5; // > 50% de confiance requis
+      // Nouveaux seuils selon vos spécifications :
+      // - Différence de plus de 1.2% avec le prix actuel
+      // - Indice de confiance de 60% minimum
+      const minConfidence = 0.6; // > 60% de confiance requis (NOUVEAU)
       const minReturnThreshold = 0.012; // > 1.2% de retour prédit requis
       
-      if (confidence >= minConfidence) {
+      // Calculer la différence de prix prédite
+      const predictedPrice = lastPrediction.predicted_price;
+      const priceDifference = Math.abs(predictedPrice - currentPrice) / currentPrice;
+      
+      // NOUVELLE LOGIQUE : Différence de prix + confiance
+      if (confidence >= minConfidence && priceDifference >= minReturnThreshold) {
         if (predictedReturn > minReturnThreshold) {
           action = 'buy';
         } else if (predictedReturn < -minReturnThreshold) {
           action = 'sell';
         }
+      }
+      
+      // AMÉLIORATION : Fermeture intelligente des positions
+      // Si TimesFM semble moins sûr (confiance < 50%), on peut fermer les positions
+      const shouldClosePositions = confidence < 0.5 && Math.abs(predictedReturn) < 0.005;
+      
+      if (shouldClosePositions) {
+        // On peut ajouter une logique pour fermer les positions existantes
+        // Cette logique sera implémentée dans une méthode séparée
+        await this.checkLowConfidencePositions(symbol, confidence);
       }
 
       // Calculer les niveaux de stop loss et take profit
@@ -89,18 +106,66 @@ export class PaperTradingEngine {
         timestamp: new Date(),
         symbol: symbol,
         predicted_return: predictedReturn,
+        predicted_price: predictedPrice,
+        price_difference_percent: priceDifference * 100,
         stop_loss: action !== 'hold' ? stopLoss : undefined,
-        take_profit: action !== 'hold' ? takeProfit : undefined
+        take_profit: action !== 'hold' ? takeProfit : undefined,
+        should_close_low_confidence: shouldClosePositions || false
       };
     } catch (error) {
       console.error('Error generating signal:', error);
       return {
         action: 'hold',
         confidence: 0,
-        price: currentPrice,
+        price: 0,
         timestamp: new Date(),
         symbol: symbol
       };
+    }
+  }
+
+  // Nouvelle méthode pour gérer les positions à faible confiance
+  async checkLowConfidencePositions(symbol: string, confidence: number): Promise<void> {
+    try {
+      // Récupérer les positions ouvertes pour ce symbol
+      const openPositions = await this.getActivePositions(symbol);
+      
+      if (openPositions.length === 0) return;
+      
+      // Si la confiance est très faible (< 0.4), fermer toutes les positions
+      if (confidence < 0.4) {
+        console.log(`Low confidence (${confidence}), closing all positions for ${symbol}`);
+        
+        for (const position of openPositions) {
+          // Récupérer le prix actuel
+          const latestMarketData = await this.db.prepare(`
+            SELECT close_price FROM market_data 
+            WHERE symbol = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+          `).bind(symbol).first() as any;
+          
+          const currentPrice = latestMarketData?.close_price;
+          if (currentPrice && position.id) {
+            await this.closePosition(position.id, currentPrice, 'low_confidence');
+          }
+        }
+      }
+      
+      // Log de l'action
+      await this.db.prepare(`
+        INSERT INTO system_logs 
+        (timestamp, level, component, message, context_data)
+        VALUES (CURRENT_TIMESTAMP, 'INFO', 'trading', 'Low confidence position check', ?)
+      `).bind(JSON.stringify({
+        symbol,
+        confidence,
+        open_positions: openPositions.length,
+        action: confidence < 0.4 ? 'positions_closed' : 'no_action'
+      })).run();
+      
+    } catch (error) {
+      console.error('Error checking low confidence positions:', error);
     }
   }
 
