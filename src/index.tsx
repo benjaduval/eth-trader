@@ -2349,6 +2349,82 @@ app.get('/', (c) => {
             window.location.href = '/login';
         }
 
+        // Helper function pour faire des requêtes API authentifiées
+        function authenticatedFetch(url, options = {}) {
+            const authToken = '12345'; // Code d'accès
+            const defaultHeaders = {
+                'Content-Type': 'application/json',
+                'X-Auth-Token': authToken
+            };
+            
+            return fetch(url, {
+                ...options,
+                headers: {
+                    ...defaultHeaders,
+                    ...(options.headers || {})
+                }
+            });
+        }
+
+        // Fonction pour charger les données initiales du dashboard
+        async function loadInitialDashboardData() {
+            try {
+                console.log('🔄 Chargement des données du dashboard...');
+                
+                // Test de connexion API
+                const healthResponse = await authenticatedFetch('/api/health');
+                const healthData = await healthResponse.json();
+                console.log('✅ API Health Check:', healthData);
+                
+                // Charger les données de marché ETH
+                const ethResponse = await authenticatedFetch('/api/dashboard?crypto=ETH');
+                if (!ethResponse.ok) {
+                    throw new Error('Erreur API ETH: ' + ethResponse.status);
+                }
+                const ethData = await ethResponse.json();
+                console.log('✅ Données ETH chargées:', ethData.success);
+                
+                // Interface simple de confirmation de chargement
+                const dashboardElement = document.getElementById('dashboard');
+                if (dashboardElement) {
+                    dashboardElement.innerHTML = \`
+                        <div class="text-center text-white p-8">
+                            <h2 class="text-2xl mb-4">🎉 Dashboard Chargé avec Succès</h2>
+                            <p class="mb-4">Authentification: ✅ Validée</p>
+                            <p class="mb-4">API Health: \${healthData.status}</p>
+                            <p class="mb-4">Données ETH: \${ethData.success ? '✅' : '❌'}</p>
+                            <div class="mt-6">
+                                <button onclick="exitToLogin()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded mr-4">
+                                    Exit
+                                </button>
+                                <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    \`;
+                }
+            } catch (error) {
+                console.error('❌ Erreur chargement dashboard:', error);
+                const dashboardElement = document.getElementById('dashboard');
+                if (dashboardElement) {
+                    dashboardElement.innerHTML = \`
+                        <div class="text-center text-red-400 p-8">
+                            <h2 class="text-2xl mb-4">❌ Erreur de Chargement</h2>
+                            <p class="mb-4">Erreur: \${error.message}</p>
+                            <p class="mb-4">Vérifiez la console pour plus de détails</p>
+                            <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mr-4">
+                                Recharger
+                            </button>
+                            <button onclick="exitToLogin()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">
+                                Retour Login
+                            </button>
+                        </div>
+                    \`;
+                }
+            }
+        }
+
         // Initialiser l'Ethereum AI Trading Terminal
         document.addEventListener('DOMContentLoaded', () => {
             // Vérifier l'authentification avant de charger l'app
@@ -2375,9 +2451,16 @@ app.get('/', (c) => {
                         updateLoading();
                     }, loadingSteps[currentStep]?.delay || 500);
                 } else {
-                    setTimeout(() => {
+                    setTimeout(async () => {
                         document.getElementById('loading').classList.add('hidden');
                         document.getElementById('dashboard').classList.remove('hidden');
+                        
+                        // Charger les données initiales du dashboard
+                        try {
+                            await loadInitialDashboardData();
+                        } catch (error) {
+                            console.error('Erreur lors du chargement des données:', error);
+                        }
                     }, 500);
                 }
             };
