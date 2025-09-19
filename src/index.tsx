@@ -44,13 +44,20 @@ app.use('/api/*', async (c, next) => {
   
   // Pour les autres routes, vérifier l'auth token dans les headers
   const authToken = c.req.header('X-Auth-Token');
+  console.log(`🔍 Auth check for ${path}: token='${authToken}'`);
+  
   if (authToken !== '12345') {
+    console.log(`❌ Auth failed for ${path}: expected '12345', got '${authToken}'`);
     return c.json({
       success: false,
       error: 'Authentication required',
-      code: 'AUTH_REQUIRED'
+      code: 'AUTH_REQUIRED',
+      debug: { path, received_token: authToken }
     }, 401);
   }
+  
+  console.log(`✅ Auth success for ${path}`);
+}
   
   return next();
 })
@@ -2357,6 +2364,9 @@ app.get('/', (c) => {
                 'X-Auth-Token': authToken
             };
             
+            console.log(`🔐 Appel API authentifié vers: ${url}`);
+            console.log(`📋 Headers envoyés:`, {...defaultHeaders, ...(options.headers || {})});
+            
             return fetch(url, {
                 ...options,
                 headers: {
@@ -2371,17 +2381,18 @@ app.get('/', (c) => {
             try {
                 console.log('🔄 Chargement des données du dashboard...');
                 
-                // Test de connexion API
-                const healthResponse = await authenticatedFetch('/api/health');
+                // Test de connexion API (endpoint public - pas besoin d'auth)
+                const healthResponse = await fetch('/api/health');
                 const healthData = await healthResponse.json();
                 console.log('✅ API Health Check:', healthData);
                 
-                // Charger les données de marché ETH
-                const ethResponse = await authenticatedFetch('/api/dashboard?crypto=ETH');
-                if (!ethResponse.ok) {
-                    throw new Error('Erreur API ETH: ' + ethResponse.status);
+                // Test d'authentification d'abord
+                const authTestResponse = await authenticatedFetch('/api/dashboard?crypto=ETH');
+                if (!authTestResponse.ok) {
+                    const errorText = await authTestResponse.text();
+                    throw new Error(`Erreur Auth API (${authTestResponse.status}): ${errorText}`);
                 }
-                const ethData = await ethResponse.json();
+                const ethData = await authTestResponse.json();
                 console.log('✅ Données ETH chargées:', ethData.success);
                 
                 // Interface simple de confirmation de chargement
