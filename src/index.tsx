@@ -2464,7 +2464,6 @@ app.get('/', (c) => {
     </div>
 
     <!-- Scripts -->
-    <script src="/static/ethereum-ai-terminal.js"></script>
     <script>
         // Vérification d'authentification
         function checkAuth() {
@@ -2534,8 +2533,8 @@ app.get('/', (c) => {
             portfolio: null
         };
 
-        // Fonction pour changer de crypto (globale)
-        window.switchCrypto = function(crypto) {
+        // Fonction pour changer de crypto
+        function switchCrypto(crypto) {
             currentCrypto = crypto;
             
             // Mettre à jour les tabs
@@ -2638,8 +2637,8 @@ app.get('/', (c) => {
             pnlElement.className = \`font-semibold \${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}\`;
         }
 
-        // Générer une nouvelle prédiction (globale)
-        window.generatePrediction = async function() {
+        // Générer une nouvelle prédiction
+        async function generatePrediction() {
             try {
                 console.log(\`🎯 Génération prédiction \${currentCrypto}...\`);
                 
@@ -2669,8 +2668,8 @@ app.get('/', (c) => {
             }
         }
 
-        // Exécuter le trading automatique (globale)
-        window.executeTrading = async function() {
+        // Exécuter le trading automatique
+        async function executeTrading() {
             try {
                 console.log(\`🤖 Exécution trading \${currentCrypto}...\`);
                 
@@ -2722,6 +2721,11 @@ app.get('/', (c) => {
         function showError(message) {
             showMessage(message, 'error');
         }
+
+        // Rendre les fonctions accessibles globalement
+        window.switchCrypto = switchCrypto;
+        window.generatePrediction = generatePrediction;
+        window.executeTrading = executeTrading;
 
         // Fonction pour charger les données initiales du dashboard
         async function loadInitialDashboardData() {
