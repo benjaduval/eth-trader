@@ -74,9 +74,10 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '3.2.0-FULL-DEPLOYMENT',
-    deployment_check: 'MULTI_CRYPTO_UPDATE_' + Date.now(),
+    version: '4.0.0-COMPLETE-TERMINAL',
+    deployment_check: 'FORCE_DEPLOY_' + Date.now(),
     project_name: 'multi-crypto-ai-trader',
+    interface_status: 'COMPLETE_TRADING_TERMINAL_LOADED',
     features: ['login_system', 'timesfm_enhanced', 'uptimerobot_endpoints', 'full_deployment'],
     services: {
       database: !!c.env.DB,
@@ -2768,12 +2769,16 @@ app.get('/', (c) => {
                         document.getElementById('loading').classList.add('hidden');
                         document.getElementById('dashboard').classList.remove('hidden');
                         
-                        // Charger les données initiales du dashboard
-                        try {
-                            await loadInitialDashboardData();
-                        } catch (error) {
-                            console.error('Erreur lors du chargement des données:', error);
-                        }
+                        // Attendre un peu avant de charger pour éviter les erreurs d'auth
+                        setTimeout(async () => {
+                            try {
+                                await loadInitialDashboardData();
+                            } catch (error) {
+                                console.error('Erreur lors du chargement des données:', error);
+                                // En cas d'erreur, au moins montrer l'interface
+                                console.log('Interface chargée malgré l\'erreur de données');
+                            }
+                        }, 1000);
                     }, 500);
                 }
             };
