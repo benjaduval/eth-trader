@@ -57,8 +57,6 @@ app.use('/api/*', async (c, next) => {
   }
   
   console.log(`✅ Auth success for ${path}`);
-}
-  
   return next();
 })
 
@@ -2512,8 +2510,8 @@ app.get('/', (c) => {
                 'X-Auth-Token': authToken
             };
             
-            console.log(`🔐 Appel API authentifié vers: ${url}`);
-            console.log(`📋 Headers envoyés:`, {...defaultHeaders, ...(options.headers || {})});
+            console.log('🔐 Appel API authentifié vers: ' + url);
+            console.log('📋 Headers envoyés:', {...defaultHeaders, ...(options.headers || {})});
             
             return fetch(url, {
                 ...options,
