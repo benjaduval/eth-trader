@@ -2234,6 +2234,35 @@ app.get('/', (c) => {
         .predictions-scroll::-webkit-scrollbar-thumb:hover {
             background: rgb(139 69 199 / 0.8);
         }
+        
+        .glassmorphism {
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(17, 25, 40, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            transition: all 0.3s ease;
+        }
+        
+        .glassmorphism:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+        }
+        
+        .fadeInUp {
+            animation: fadeInUp 0.6s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -2310,7 +2339,126 @@ app.get('/', (c) => {
 
         <!-- Dashboard Content -->
         <div class="container mx-auto px-6 py-8">
-            <!-- Le contenu sera injecté ici par JavaScript -->
+            <!-- Main Grid Layout -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Price & Market Data Section -->
+                <div class="lg:col-span-2 space-y-6">
+                    
+                    <!-- Current Price Card -->
+                    <div class="glassmorphism rounded-2xl p-6 fadeInUp">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold text-white">
+                                <i class="fas fa-chart-line text-purple-400 mr-2"></i>
+                                Prix en Temps Réel
+                            </h3>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-xs text-gray-400">Live</span>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div id="current-price" class="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent mb-2">
+                                $0.00
+                            </div>
+                            <div id="price-change" class="text-lg">
+                                <span class="text-gray-400">24h: </span>
+                                <span class="text-green-400">+0.00%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Market Stats -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                            <div class="text-center p-3 bg-black/20 rounded-lg">
+                                <div class="text-xs text-gray-400">Volume 24h</div>
+                                <div id="volume-24h" class="text-sm font-semibold text-white">$0</div>
+                            </div>
+                            <div class="text-center p-3 bg-black/20 rounded-lg">
+                                <div class="text-xs text-gray-400">Market Cap</div>
+                                <div id="market-cap" class="text-sm font-semibold text-white">$0</div>
+                            </div>
+                            <div class="text-center p-3 bg-black/20 rounded-lg">
+                                <div class="text-xs text-gray-400">Volatility</div>
+                                <div id="volatility" class="text-sm font-semibold text-white">0%</div>
+                            </div>
+                            <div class="text-center p-3 bg-black/20 rounded-lg">
+                                <div class="text-xs text-gray-400">Trend</div>
+                                <div id="trend" class="text-sm font-semibold text-white">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Placeholder -->
+                    <div class="glassmorphism rounded-2xl p-6 fadeInUp">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-chart-area text-blue-400 mr-2"></i>
+                            Graphique des Prix
+                        </h3>
+                        <div class="h-64 flex items-center justify-center bg-black/20 rounded-lg">
+                            <div class="text-center text-gray-400">
+                                <i class="fas fa-chart-line text-3xl mb-2 text-blue-400"></i>
+                                <p>Graphique en cours de chargement...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sidebar - Predictions & Trading -->
+                <div class="space-y-6">
+                    
+                    <!-- TimesFM Predictions -->
+                    <div class="glassmorphism rounded-2xl p-6 fadeInUp">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-brain text-purple-400 mr-2"></i>
+                            Prédictions TimesFM
+                        </h3>
+                        
+                        <div id="predictions-container" class="space-y-3">
+                            <div class="text-center text-gray-400 py-4">
+                                <i class="fas fa-spinner animate-spin text-2xl mb-2"></i>
+                                <p>Génération des prédictions...</p>
+                            </div>
+                        </div>
+                        
+                        <button onclick="generatePrediction()" 
+                            class="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg">
+                            <i class="fas fa-magic mr-2"></i>
+                            Nouvelle Prédiction
+                        </button>
+                    </div>
+                    
+                    <!-- Portfolio Status -->
+                    <div class="glassmorphism rounded-2xl p-6 fadeInUp">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-wallet text-green-400 mr-2"></i>
+                            Portfolio
+                        </h3>
+                        
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Balance:</span>
+                                <span id="balance" class="text-white font-semibold">$10,000</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Positions:</span>
+                                <span id="positions-count" class="text-white font-semibold">0</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">P&L Total:</span>
+                                <span id="total-pnl" class="text-green-400 font-semibold">+$0</span>
+                            </div>
+                        </div>
+                        
+                        <button onclick="executeTrading()" 
+                            class="w-full mt-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg">
+                            <i class="fas fa-robot mr-2"></i>
+                            Trading Auto
+                        </button>
+                    </div>
+                    
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2376,63 +2524,217 @@ app.get('/', (c) => {
             });
         }
 
+        // État global de l'application
+        let currentCrypto = 'ETH';
+        let appData = {
+            price: 0,
+            marketData: null,
+            predictions: [],
+            portfolio: null
+        };
+
+        // Fonction pour changer de crypto (globale)
+        window.switchCrypto = function(crypto) {
+            currentCrypto = crypto;
+            
+            // Mettre à jour les tabs
+            document.getElementById('eth-tab').classList.toggle('active', crypto === 'ETH');
+            document.getElementById('btc-tab').classList.toggle('active', crypto === 'BTC');
+            
+            // Recharger les données
+            loadDashboardData();
+        }
+
+        // Fonction pour charger les données du dashboard
+        async function loadDashboardData() {
+            try {
+                console.log(\`🔄 Chargement des données \${currentCrypto}...\`);
+                
+                // Charger les données du dashboard
+                const response = await authenticatedFetch(\`/api/dashboard?crypto=\${currentCrypto}\`);
+                if (!response.ok) {
+                    throw new Error(\`Erreur API: \${response.status}\`);
+                }
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Erreur inconnue');
+                }
+                
+                // Mettre à jour l'interface
+                updatePriceDisplay(data.data.market_data);
+                updatePredictions(data.data.predictions);
+                updatePortfolio(data.data.portfolio);
+                
+                console.log(\`✅ Données \${currentCrypto} chargées avec succès\`);
+                
+            } catch (error) {
+                console.error('❌ Erreur chargement dashboard:', error);
+                showError(\`Erreur de chargement: \${error.message}\`);
+            }
+        }
+
+        // Mettre à jour l'affichage des prix
+        function updatePriceDisplay(marketData) {
+            if (!marketData) return;
+            
+            document.getElementById('current-price').textContent = \`$\${marketData.price?.toLocaleString() || '0.00'}\`;
+            
+            const changeElement = document.getElementById('price-change');
+            const change24h = marketData.price_change_24h || 0;
+            const changeClass = change24h >= 0 ? 'text-green-400' : 'text-red-400';
+            const changeSign = change24h >= 0 ? '+' : '';
+            
+            changeElement.innerHTML = \`
+                <span class="text-gray-400">24h: </span>
+                <span class="\${changeClass}">\${changeSign}\${change24h.toFixed(2)}%</span>
+            \`;
+            
+            // Mettre à jour les stats de marché
+            document.getElementById('volume-24h').textContent = \`$\${(marketData.volume_24h || 0).toLocaleString()}\`;
+            document.getElementById('market-cap').textContent = \`$\${(marketData.market_cap || 0).toLocaleString()}\`;
+            document.getElementById('volatility').textContent = \`\${(marketData.volatility || 0).toFixed(1)}%\`;
+            document.getElementById('trend').textContent = marketData.trend || 'NEUTRAL';
+        }
+
+        // Mettre à jour les prédictions
+        function updatePredictions(predictions) {
+            const container = document.getElementById('predictions-container');
+            if (!predictions || predictions.length === 0) {
+                container.innerHTML = \`
+                    <div class="text-center text-gray-400 py-4">
+                        <p>Aucune prédiction disponible</p>
+                    </div>
+                \`;
+                return;
+            }
+            
+            container.innerHTML = predictions.slice(0, 3).map(pred => \`
+                <div class="bg-black/20 rounded-lg p-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-400">\${pred.horizon}h</span>
+                        <span class="text-xs font-semibold \${pred.confidence > 60 ? 'text-green-400' : 'text-yellow-400'}">
+                            \${pred.confidence}%
+                        </span>
+                    </div>
+                    <div class="text-sm font-semibold \${pred.predicted_return > 0 ? 'text-green-400' : 'text-red-400'}">
+                        \${pred.predicted_return > 0 ? '+' : ''}\${pred.predicted_return.toFixed(2)}%
+                    </div>
+                </div>
+            \`).join('');
+        }
+
+        // Mettre à jour le portfolio
+        function updatePortfolio(portfolio) {
+            if (!portfolio) return;
+            
+            document.getElementById('balance').textContent = \`$\${portfolio.balance?.toLocaleString() || '10,000'}\`;
+            document.getElementById('positions-count').textContent = portfolio.active_positions || '0';
+            
+            const totalPnl = portfolio.total_pnl || 0;
+            const pnlElement = document.getElementById('total-pnl');
+            pnlElement.textContent = \`\${totalPnl >= 0 ? '+' : ''}$\${totalPnl.toFixed(2)}\`;
+            pnlElement.className = \`font-semibold \${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}\`;
+        }
+
+        // Générer une nouvelle prédiction (globale)
+        window.generatePrediction = async function() {
+            try {
+                console.log(\`🎯 Génération prédiction \${currentCrypto}...\`);
+                
+                const response = await authenticatedFetch('/api/predictions/generate', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        crypto: currentCrypto,
+                        horizon: 24
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(\`Erreur génération: \${response.status}\`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    showMessage('Nouvelle prédiction générée !', 'success');
+                    loadDashboardData(); // Recharger pour afficher la nouvelle prédiction
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                console.error('❌ Erreur génération prédiction:', error);
+                showError(\`Erreur: \${error.message}\`);
+            }
+        }
+
+        // Exécuter le trading automatique (globale)
+        window.executeTrading = async function() {
+            try {
+                console.log(\`🤖 Exécution trading \${currentCrypto}...\`);
+                
+                const response = await authenticatedFetch('/api/trading/execute', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        crypto: currentCrypto
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(\`Erreur trading: \${response.status}\`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    showMessage(\`Signal de trading exécuté: \${data.signal?.action || 'HOLD'}\`, 'success');
+                    loadDashboardData(); // Recharger le portfolio
+                } else {
+                    throw new Error(data.error);
+                }
+                
+            } catch (error) {
+                console.error('❌ Erreur trading:', error);
+                showError(\`Erreur: \${error.message}\`);
+            }
+        }
+
+        // Afficher un message
+        function showMessage(message, type = 'info') {
+            const colors = {
+                info: 'bg-blue-500',
+                success: 'bg-green-500',
+                error: 'bg-red-500'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = \`fixed top-4 right-4 \${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300\`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Afficher une erreur
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
         // Fonction pour charger les données initiales du dashboard
         async function loadInitialDashboardData() {
             try {
-                console.log('🔄 Chargement des données du dashboard...');
+                console.log('🔄 Initialisation du dashboard...');
                 
-                // Test de connexion API (endpoint public - pas besoin d'auth)
-                const healthResponse = await fetch('/api/health');
-                const healthData = await healthResponse.json();
-                console.log('✅ API Health Check:', healthData);
+                // Charger les données initiales
+                await loadDashboardData();
                 
-                // Test d'authentification d'abord
-                const authTestResponse = await authenticatedFetch('/api/dashboard?crypto=ETH');
-                if (!authTestResponse.ok) {
-                    const errorText = await authTestResponse.text();
-                    throw new Error(`Erreur Auth API (${authTestResponse.status}): ${errorText}`);
-                }
-                const ethData = await authTestResponse.json();
-                console.log('✅ Données ETH chargées:', ethData.success);
+                console.log('✅ Dashboard initialisé avec succès');
                 
-                // Interface simple de confirmation de chargement
-                const dashboardElement = document.getElementById('dashboard');
-                if (dashboardElement) {
-                    dashboardElement.innerHTML = \`
-                        <div class="text-center text-white p-8">
-                            <h2 class="text-2xl mb-4">🎉 Dashboard Chargé avec Succès</h2>
-                            <p class="mb-4">Authentification: ✅ Validée</p>
-                            <p class="mb-4">API Health: \${healthData.status}</p>
-                            <p class="mb-4">Données ETH: \${ethData.success ? '✅' : '❌'}</p>
-                            <div class="mt-6">
-                                <button onclick="exitToLogin()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded mr-4">
-                                    Exit
-                                </button>
-                                <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
-                                    Logout
-                                </button>
-                            </div>
-                        </div>
-                    \`;
-                }
             } catch (error) {
-                console.error('❌ Erreur chargement dashboard:', error);
-                const dashboardElement = document.getElementById('dashboard');
-                if (dashboardElement) {
-                    dashboardElement.innerHTML = \`
-                        <div class="text-center text-red-400 p-8">
-                            <h2 class="text-2xl mb-4">❌ Erreur de Chargement</h2>
-                            <p class="mb-4">Erreur: \${error.message}</p>
-                            <p class="mb-4">Vérifiez la console pour plus de détails</p>
-                            <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mr-4">
-                                Recharger
-                            </button>
-                            <button onclick="exitToLogin()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">
-                                Retour Login
-                            </button>
-                        </div>
-                    \`;
-                }
+                console.error('❌ Erreur initialisation dashboard:', error);
+                showError(\`Erreur d'initialisation: \${error.message}\`);
             }
         }
 
