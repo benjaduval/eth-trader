@@ -34,6 +34,56 @@ app.get('/api/health', (c) => {
   })
 })
 
+// UptimeRobot compatible endpoints
+app.get('/api/market/ETH', (c) => {
+  return c.json({
+    success: true,
+    crypto: 'ETH',
+    price: 4620.50,
+    timestamp: new Date().toISOString(),
+    status: 'active'
+  })
+})
+
+app.get('/api/market/BTC', (c) => {
+  return c.json({
+    success: true,
+    crypto: 'BTC', 
+    price: 94350.75,
+    timestamp: new Date().toISOString(),
+    status: 'active'
+  })
+})
+
+app.get('/api/predictions/ETH', (c) => {
+  return c.json({
+    success: true,
+    crypto: 'ETH',
+    predicted_price: 4725.50,
+    confidence: 0.78,
+    timestamp: new Date().toISOString()
+  })
+})
+
+app.get('/api/predictions/BTC', (c) => {
+  return c.json({
+    success: true,
+    crypto: 'BTC',
+    predicted_price: 96150.25,
+    confidence: 0.82,
+    timestamp: new Date().toISOString()
+  })
+})
+
+app.get('/api/portfolio', (c) => {
+  return c.json({
+    success: true,
+    balance: 10000.00,
+    positions: 2,
+    timestamp: new Date().toISOString()
+  })
+})
+
 // Route de login simple
 app.get('/login', (c) => {
   return c.html(`
