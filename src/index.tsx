@@ -127,6 +127,38 @@ app.get('/login', (c) => {
   `)
 })
 
+// Route pour le terminal standalone (intégrée)
+app.get('/ethereum-terminal-standalone.html', (c) => {
+  // Lire le contenu du terminal depuis le fichier dist
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const terminalPath = path.join(process.cwd(), 'dist', 'ethereum-terminal-standalone.html');
+    const terminalContent = fs.readFileSync(terminalPath, 'utf8');
+    return c.html(terminalContent);
+  } catch (error) {
+    return c.html(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Terminal Loading...</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+          <div class="text-center">
+              <h1 class="text-2xl mb-4">🚀 ETH Trader Terminal</h1>
+              <p>Terminal en cours de chargement...</p>
+              <div class="mt-4">
+                  <a href="/login" class="text-blue-400 hover:underline">← Retour au login</a>
+              </div>
+          </div>
+      </body>
+      </html>
+    `);
+  }
+});
+
 // Route principale - redirige vers login ou terminal
 app.get('/', (c) => {
   return c.html(`
