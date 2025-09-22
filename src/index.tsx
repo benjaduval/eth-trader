@@ -1164,24 +1164,21 @@ app.get('/terminal', (c) => {
                 const ctx = canvas.getContext('2d');
                 const currentPrice = dashboard.current_price || (this.currentCrypto === 'ETH' ? 4600 : 94000);
                 
-                // 400+ points de données comme demandé originellement
-                const hours = 48; // 48 heures pour plus de données historiques
-                const pointsPerHour = 10; // 10 points par heure = 480 points total
+                // RESTAURATION: 400+ points de données - 1 POINT PAR HEURE comme stratégie originale
+                const hours = 400; // 400+ heures pour TimesFM (stratégie originale)
+                const pointsPerHour = 1; // 1 POINT PAR HEURE - CRUCIAL pour TimesFM
                 const totalPoints = hours * pointsPerHour;
                 const data = [];
                 const labels = [];
 
-                // Générer 480+ points de données
+                // Générer 400+ points de données (1 par heure - TimesFM requirement)
                 for (let i = totalPoints; i >= 0; i--) {
-                    const time = new Date(Date.now() - i * (60 * 60 * 1000) / pointsPerHour);
+                    const time = new Date(Date.now() - i * 60 * 60 * 1000); // 1 heure exacte
                     labels.push(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
                     
-                    // Variation plus réaliste avec tendance
-                    const hourProgress = (totalPoints - i) / totalPoints;
-                    const trend = Math.sin(hourProgress * Math.PI * 4) * 0.02; // tendance sinusoïdale
-                    const noise = (Math.random() - 0.5) * 0.015; // bruit aléatoire
-                    const variation = trend + noise;
-                    const price = currentPrice * (1 + variation * hourProgress);
+                    // Variation réaliste pour TimesFM (stratégie originale)
+                    const variation = (Math.random() - 0.5) * 0.02;
+                    const price = currentPrice * (1 + variation * (i / totalPoints));
                     data.push(price);
                 }
 
