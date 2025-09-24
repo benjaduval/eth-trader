@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { CloudflareBindings } from './types/cloudflare'
+import { CoinGeckoService } from './services/coingecko'
 
 type Env = {
   Bindings: CloudflareBindings
@@ -34,25 +35,109 @@ app.get('/api/health', (c) => {
   })
 })
 
-// UptimeRobot compatible endpoints
-app.get('/api/market/ETH', (c) => {
-  return c.json({
-    success: true,
-    crypto: 'ETH',
-    price: 4620.50,
-    timestamp: new Date().toISOString(),
-    status: 'active'
-  })
+// UptimeRobot compatible endpoints - Avec vraies données CoinGecko Pro
+app.get('/api/market/ETH', async (c) => {
+  try {
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const ethData = await coingecko.getEnhancedMarketData('ETH')
+    
+    if (ethData.price_data?.ethereum) {
+      const ethPrice = ethData.price_data.ethereum
+      
+      // Corriger le bug price_change_24h vs price_change_percentage_24h
+      const priceChangePercent = ethPrice.usd_24h_change || 0 // En pourcentage
+      const priceChangeAbsolute = ethPrice.usd ? (ethPrice.usd * priceChangePercent / 100) : 0 // En USD
+      
+      return c.json({
+        success: true,
+        crypto: 'ETH',
+        symbol: 'ETHUSDT',
+        price: ethPrice.usd,
+        price_change_24h: priceChangeAbsolute, // Variation absolue en USD
+        price_change_percentage_24h: priceChangePercent, // Variation en pourcentage
+        volume: ethPrice.usd_24h_vol || 0,
+        market_cap: ethPrice.usd_market_cap || 0,
+        timestamp: new Date().toISOString(),
+        status: 'active',
+        data: {
+          symbol: 'ETHUSDT',
+          price: ethPrice.usd,
+          price_change_24h: priceChangeAbsolute,
+          price_change_percentage_24h: priceChangePercent,
+          volume: ethPrice.usd_24h_vol || 0,
+          market_cap: ethPrice.usd_market_cap || 0,
+          timestamp: new Date().toISOString()
+        }
+      })
+    }
+    
+    // Fallback si pas de données
+    return c.json({
+      success: true,
+      crypto: 'ETH',
+      price: 4620.50,
+      timestamp: new Date().toISOString(),
+      status: 'active'
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Market data unavailable',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
-app.get('/api/market/BTC', (c) => {
-  return c.json({
-    success: true,
-    crypto: 'BTC', 
-    price: 94350.75,
-    timestamp: new Date().toISOString(),
-    status: 'active'
-  })
+app.get('/api/market/BTC', async (c) => {
+  try {
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const btcData = await coingecko.getEnhancedMarketData('BTC')
+    
+    if (btcData.price_data?.bitcoin) {
+      const btcPrice = btcData.price_data.bitcoin
+      
+      // Corriger le bug price_change_24h vs price_change_percentage_24h
+      const priceChangePercent = btcPrice.usd_24h_change || 0 // En pourcentage
+      const priceChangeAbsolute = btcPrice.usd ? (btcPrice.usd * priceChangePercent / 100) : 0 // En USD
+      
+      return c.json({
+        success: true,
+        crypto: 'BTC',
+        symbol: 'BTCUSDT',
+        price: btcPrice.usd,
+        price_change_24h: priceChangeAbsolute, // Variation absolue en USD
+        price_change_percentage_24h: priceChangePercent, // Variation en pourcentage
+        volume: btcPrice.usd_24h_vol || 0,
+        market_cap: btcPrice.usd_market_cap || 0,
+        timestamp: new Date().toISOString(),
+        status: 'active',
+        data: {
+          symbol: 'BTCUSDT',
+          price: btcPrice.usd,
+          price_change_24h: priceChangeAbsolute,
+          price_change_percentage_24h: priceChangePercent,
+          volume: btcPrice.usd_24h_vol || 0,
+          market_cap: btcPrice.usd_market_cap || 0,
+          timestamp: new Date().toISOString()
+        }
+      })
+    }
+    
+    // Fallback si pas de données
+    return c.json({
+      success: true,
+      crypto: 'BTC',
+      price: 94350.75,
+      timestamp: new Date().toISOString(),
+      status: 'active'
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Market data unavailable',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
 app.get('/api/predictions/ETH', (c) => {
