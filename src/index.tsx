@@ -7,6 +7,8 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { CloudflareBindings } from './types/cloudflare'
 import { CoinGeckoService } from './services/coingecko'
+import { TimesFMPredictor } from './services/timesfm-predictor'
+import { PaperTradingEngine } from './services/paper-trading'
 
 type Env = {
   Bindings: CloudflareBindings
@@ -144,7 +146,7 @@ app.get('/api/market/BTC', async (c) => {
   }
 })
 
-// TimesFM-powered predictions with detailed analysis
+// TimesFM-powered predictions with real database analysis
 app.get('/api/predictions/ETH', async (c) => {
   try {
     // Get current market data first
@@ -152,31 +154,40 @@ app.get('/api/predictions/ETH', async (c) => {
     const marketData = await marketResponse.json()
     const currentPrice = marketData.price || 4620.50
     
-    // Generate TimesFM prediction
+    // Initialize TimesFM Predictor with D1 database
+    const predictor = new TimesFMPredictor(c.env.DB)
+    
+    // Generate REAL TimesFM prediction using 450+ historical data points
+    const timesfmPrediction = await predictor.predictNextHours('ETH', 24, currentPrice)
+    
+    // Transform to match frontend expected format
     const prediction = {
       id: Date.now() + '_ETH',
       crypto: 'ETH',
       current_price: currentPrice,
-      predicted_price: currentPrice * (1 + (Math.random() - 0.5) * 0.1), // ±10% variation
-      confidence: 0.75 + Math.random() * 0.2, // 75-95% confidence
+      predicted_price: timesfmPrediction.predicted_price,
+      confidence: timesfmPrediction.confidence_score,
+      predicted_return: timesfmPrediction.predicted_return,
       prediction_horizon: '24h',
       model_version: 'TimesFM-v2.1',
       features_analyzed: [
-        'Price momentum',
-        'Trading volume',
-        'Market sentiment',
-        'Technical indicators',
-        'On-chain metrics'
+        'RSI Technical Analysis',
+        'EMA 20/50 Crossovers',
+        'Bollinger Bands Position', 
+        'Price Momentum Indicators',
+        'ATR Volatility Analysis',
+        'Market Trend Patterns'
       ],
-      quantile_10: currentPrice * 0.92,
-      quantile_90: currentPrice * 1.08,
+      quantile_10: timesfmPrediction.quantile_10,
+      quantile_90: timesfmPrediction.quantile_90,
       analysis: {
-        trend: Math.random() > 0.5 ? 'bullish' : 'bearish',
-        volatility: 'moderate',
+        trend: timesfmPrediction.predicted_return > 0.005 ? 'bullish' : 
+               timesfmPrediction.predicted_return < -0.005 ? 'bearish' : 'sideways',
+        volatility: timesfmPrediction.confidence_score > 0.7 ? 'low' : 'moderate',
         key_factors: [
-          'Strong trading volume momentum',
-          'Positive market sentiment indicators',
-          'Technical breakout pattern detected'
+          `Expected ${(timesfmPrediction.predicted_return * 100).toFixed(2)}% movement in 24h`,
+          `Model confidence: ${(timesfmPrediction.confidence_score * 100).toFixed(1)}%`,
+          `Analysis based on ${timesfmPrediction.horizon_hours}h historical data`
         ]
       },
       timestamp: new Date().toISOString()
@@ -193,10 +204,10 @@ app.get('/api/predictions/ETH', async (c) => {
       ...prediction
     })
   } catch (error) {
-    console.error('ETH Prediction Error:', error)
+    console.error('ETH TimesFM Prediction Error:', error)
     return c.json({
       success: false,
-      error: 'Failed to generate prediction',
+      error: 'Failed to generate TimesFM prediction',
       timestamp: new Date().toISOString()
     })
   }
@@ -208,30 +219,40 @@ app.get('/api/predictions/BTC', async (c) => {
     const marketData = await marketResponse.json()
     const currentPrice = marketData.price || 94350.75
     
+    // Initialize TimesFM Predictor with D1 database
+    const predictor = new TimesFMPredictor(c.env.DB)
+    
+    // Generate REAL TimesFM prediction using 450+ historical data points
+    const timesfmPrediction = await predictor.predictNextHours('BTC', 24, currentPrice)
+    
+    // Transform to match frontend expected format
     const prediction = {
       id: Date.now() + '_BTC',
       crypto: 'BTC',
       current_price: currentPrice,
-      predicted_price: currentPrice * (1 + (Math.random() - 0.5) * 0.08), // ±8% variation
-      confidence: 0.78 + Math.random() * 0.17, // 78-95% confidence
+      predicted_price: timesfmPrediction.predicted_price,
+      confidence: timesfmPrediction.confidence_score,
+      predicted_return: timesfmPrediction.predicted_return,
       prediction_horizon: '24h',
       model_version: 'TimesFM-v2.1',
       features_analyzed: [
-        'Price momentum',
-        'Trading volume',
-        'Market dominance',
-        'Network activity',
-        'Institutional flows'
+        'RSI Technical Analysis',
+        'EMA 20/50 Crossovers', 
+        'Bollinger Bands Position',
+        'Price Momentum Indicators',
+        'ATR Volatility Analysis',
+        'Market Trend Patterns'
       ],
-      quantile_10: currentPrice * 0.94,
-      quantile_90: currentPrice * 1.06,
+      quantile_10: timesfmPrediction.quantile_10,
+      quantile_90: timesfmPrediction.quantile_90,
       analysis: {
-        trend: Math.random() > 0.4 ? 'bullish' : 'bearish',
-        volatility: 'low-moderate',
+        trend: timesfmPrediction.predicted_return > 0.005 ? 'bullish' : 
+               timesfmPrediction.predicted_return < -0.005 ? 'bearish' : 'sideways',
+        volatility: timesfmPrediction.confidence_score > 0.7 ? 'low' : 'moderate',
         key_factors: [
-          'Institutional accumulation patterns',
-          'Network hash rate stability',
-          'Correlation with traditional markets'
+          `Expected ${(timesfmPrediction.predicted_return * 100).toFixed(2)}% movement in 24h`,
+          `Model confidence: ${(timesfmPrediction.confidence_score * 100).toFixed(1)}%`,
+          `Analysis based on ${timesfmPrediction.horizon_hours}h historical data`
         ]
       },
       timestamp: new Date().toISOString()
@@ -247,10 +268,10 @@ app.get('/api/predictions/BTC', async (c) => {
       ...prediction
     })
   } catch (error) {
-    console.error('BTC Prediction Error:', error)
+    console.error('BTC TimesFM Prediction Error:', error)
     return c.json({
       success: false,
-      error: 'Failed to generate prediction',
+      error: 'Failed to generate TimesFM prediction',
       timestamp: new Date().toISOString()
     })
   }
@@ -1391,6 +1412,218 @@ app.get('/terminal', (c) => {
     </script>
 </body>
 </html>`)
+})
+
+// ===========================
+// AUTOMATION ENDPOINTS - UptimeRobot Compatible
+// ===========================
+
+// Hourly automation cycle - Collecte données + génère prédictions + signaux trading
+app.get('/api/automation/hourly', async (c) => {
+  try {
+    const startTime = Date.now()
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const predictor = new TimesFMPredictor(c.env.DB)
+    const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+
+    const results = {
+      cycle_type: 'hourly',
+      timestamp: new Date().toISOString(),
+      data_collection: { status: 'pending', eth: null, btc: null },
+      predictions: { status: 'pending', eth: null, btc: null },
+      trading_signals: { status: 'pending', eth: null, btc: null },
+      errors: [] as string[]
+    }
+
+    // 1. Collecte des données de marché ETH/BTC
+    try {
+      const [ethData, btcData] = await Promise.all([
+        coingecko.getEnhancedMarketData('ETH'),
+        coingecko.getEnhancedMarketData('BTC')
+      ])
+
+      // Store market data in database 
+      if (ethData.price_data?.ethereum) {
+        const eth = ethData.price_data.ethereum
+        await c.env.DB.prepare(`
+          INSERT INTO market_data (symbol, timestamp, open_price, high_price, low_price, close_price, volume, market_cap)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          'ETHUSDT', new Date().toISOString(), 
+          eth.usd, eth.usd, eth.usd, eth.usd,
+          eth.usd_24h_vol || 0, eth.usd_market_cap || 0
+        ).run()
+        
+        results.data_collection.eth = { price: eth.usd, volume: eth.usd_24h_vol }
+      }
+
+      if (btcData.price_data?.bitcoin) {
+        const btc = btcData.price_data.bitcoin
+        await c.env.DB.prepare(`
+          INSERT INTO market_data (symbol, timestamp, open_price, high_price, low_price, close_price, volume, market_cap)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          'BTCUSDT', new Date().toISOString(),
+          btc.usd, btc.usd, btc.usd, btc.usd,
+          btc.usd_24h_vol || 0, btc.usd_market_cap || 0
+        ).run()
+        
+        results.data_collection.btc = { price: btc.usd, volume: btc.usd_24h_vol }
+      }
+
+      results.data_collection.status = 'completed'
+    } catch (error) {
+      results.errors.push(`Data collection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
+    // 2. Générer prédictions TimesFM
+    try {
+      const [ethPrediction, btcPrediction] = await Promise.all([
+        predictor.predictNextHours('ETH', 24, results.data_collection.eth?.price || 4620),
+        predictor.predictNextHours('BTC', 24, results.data_collection.btc?.price || 94350)
+      ])
+
+      results.predictions = {
+        status: 'completed',
+        eth: {
+          predicted_price: ethPrediction.predicted_price,
+          confidence: ethPrediction.confidence_score,
+          return: ethPrediction.predicted_return
+        },
+        btc: {
+          predicted_price: btcPrediction.predicted_price,
+          confidence: btcPrediction.confidence_score,
+          return: btcPrediction.predicted_return
+        }
+      }
+    } catch (error) {
+      results.errors.push(`Predictions failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
+    // 3. Générer signaux de trading (seuils: >59% confiance, >1.2% variation)
+    try {
+      const [ethSignal, btcSignal] = await Promise.all([
+        tradingEngine.generateSignal('ETHUSDT', results.data_collection.eth?.price),
+        tradingEngine.generateSignal('BTCUSDT', results.data_collection.btc?.price)
+      ])
+
+      // Appliquer les seuils automatiques: >59% confiance + >1.2% variation
+      const ethValid = ethSignal.confidence > 0.59 && Math.abs(ethSignal.predicted_return || 0) > 0.012
+      const btcValid = btcSignal.confidence > 0.59 && Math.abs(btcSignal.predicted_return || 0) > 0.012
+
+      // Exécuter trades automatiques si seuils respectés
+      if (ethValid && ethSignal.action !== 'hold') {
+        await tradingEngine.executePaperTrade(ethSignal)
+      }
+      
+      if (btcValid && btcSignal.action !== 'hold') {
+        await tradingEngine.executePaperTrade(btcSignal)
+      }
+
+      results.trading_signals = {
+        status: 'completed',
+        eth: {
+          action: ethSignal.action,
+          confidence: ethSignal.confidence,
+          meets_threshold: ethValid,
+          executed: ethValid && ethSignal.action !== 'hold'
+        },
+        btc: {
+          action: btcSignal.action, 
+          confidence: btcSignal.confidence,
+          meets_threshold: btcValid,
+          executed: btcValid && btcSignal.action !== 'hold'
+        }
+      }
+    } catch (error) {
+      results.errors.push(`Trading signals failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
+    const executionTime = Date.now() - startTime
+
+    return c.json({
+      success: results.errors.length === 0,
+      execution_time_ms: executionTime,
+      ...results
+    })
+
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Hourly automation failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
+
+// Position monitoring cycle - Vérifie stop-loss/take-profit (5min)
+app.get('/api/trading/check-positions', async (c) => {
+  try {
+    const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
+    const predictor = new TimesFMPredictor(c.env.DB)
+    
+    // Récupérer prix actuels
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const [ethData, btcData] = await Promise.all([
+      coingecko.getEnhancedMarketData('ETH'),
+      coingecko.getEnhancedMarketData('BTC')
+    ])
+
+    const ethPrice = ethData.price_data?.ethereum?.usd || 4620
+    const btcPrice = btcData.price_data?.bitcoin?.usd || 94350
+
+    const results = {
+      monitoring_cycle: '5min_positions',
+      timestamp: new Date().toISOString(),
+      eth: { price: ethPrice, positions_checked: 0, positions_closed: 0 },
+      btc: { price: btcPrice, positions_checked: 0, positions_closed: 0 },
+      total_closures: 0
+    }
+
+    // Vérifier positions ETH
+    try {
+      await tradingEngine.checkStopLossAndTakeProfit(ethPrice)
+      const ethPositions = await tradingEngine.getActivePositions('ETHUSDT')
+      results.eth.positions_checked = ethPositions.length
+
+      // Prédiction intelligente pour fermetures anticipées
+      const ethPrediction = await predictor.predictNextHours('ETH', 4, ethPrice) // 4h horizon plus court
+      const ethClosures = await tradingEngine.checkAndClosePositionsIntelligent(ethPrediction, ethPrice)
+      results.eth.positions_closed = ethClosures.positions_closed
+      results.total_closures += ethClosures.positions_closed
+      
+    } catch (error) {
+      console.error('ETH position monitoring error:', error)
+    }
+
+    // Vérifier positions BTC
+    try {
+      await tradingEngine.checkStopLossAndTakeProfit(btcPrice)
+      const btcPositions = await tradingEngine.getActivePositions('BTCUSDT')
+      results.btc.positions_checked = btcPositions.length
+
+      // Prédiction intelligente pour fermetures anticipées
+      const btcPrediction = await predictor.predictNextHours('BTC', 4, btcPrice)
+      const btcClosures = await tradingEngine.checkAndClosePositionsIntelligent(btcPrediction, btcPrice)
+      results.btc.positions_closed = btcClosures.positions_closed
+      results.total_closures += btcClosures.positions_closed
+      
+    } catch (error) {
+      console.error('BTC position monitoring error:', error)
+    }
+
+    return c.json({
+      success: true,
+      ...results
+    })
+
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Position monitoring failed',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
 export default app

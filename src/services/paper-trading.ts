@@ -66,8 +66,8 @@ export class PaperTradingEngine {
       
       // Nouveaux seuils selon vos spécifications :
       // - Différence de plus de 1.2% avec le prix actuel
-      // - Indice de confiance de 60% minimum
-      const minConfidence = 0.6; // > 60% de confiance requis (NOUVEAU)
+      // - Indice de confiance de 59% minimum  
+      const minConfidence = 0.59; // > 59% de confiance requis
       const minReturnThreshold = 0.012; // > 1.2% de retour prédit requis
       
       // Calculer la différence de prix prédite
