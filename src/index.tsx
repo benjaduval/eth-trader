@@ -947,7 +947,7 @@ app.get('/terminal', (c) => {
                                             $\${latestPrediction?.predicted_price?.toLocaleString() || 'Computing...'}
                                         </div>
                                         <div class="text-xs text-blue-400">
-                                            Confidence: \${latestPrediction?.confidence_score ? (latestPrediction.confidence_score * 100).toFixed(1) + '%' : 'N/A'}
+                                            Confidence: \${latestPrediction?.confidence ? (latestPrediction.confidence * 100).toFixed(1) + '%' : 'N/A'}
                                         </div>
                                     </div>
                                     
@@ -979,14 +979,14 @@ app.get('/terminal', (c) => {
                                         </div>
                                         <div>
                                             <div class="text-white font-medium mb-1">Current Status:</div>
-                                            \${latestPrediction?.predicted_return ? \`
+                                            \${latestPrediction && latestPrediction.predicted_return !== undefined && latestPrediction.confidence !== undefined ? \`
                                                 <div class="text-gray-400">• Variation: \${(Math.abs(latestPrediction.predicted_return) * 100).toFixed(2)}% \${Math.abs(latestPrediction.predicted_return) > 0.012 ? '✅' : '❌'}</div>
-                                                <div class="text-gray-400">• Confidence: \${(latestPrediction.confidence_score * 100).toFixed(1)}% \${latestPrediction.confidence_score > 0.59 ? '✅' : '❌'}</div>
-                                                \${Math.abs(latestPrediction.predicted_return) > 0.012 && latestPrediction.confidence_score > 0.59 ? 
+                                                <div class="text-gray-400">• Confidence: \${(latestPrediction.confidence * 100).toFixed(1)}% \${latestPrediction.confidence > 0.59 ? '✅' : '❌'}</div>
+                                                \${Math.abs(latestPrediction.predicted_return) > 0.012 && latestPrediction.confidence > 0.59 ? 
                                                     '<div class="text-green-400 font-medium mt-1">✅ Trade conditions met!</div>' : 
-                                                    '<div class="text-red-400 font-medium mt-1">❌ No trade - conditions not met</div>'
+                                                    \`<div class="text-red-400 font-medium mt-1">❌ No trade - \${latestPrediction.confidence <= 0.59 ? 'Low confidence (' + (latestPrediction.confidence * 100).toFixed(1) + '% < 59%)' : 'Low variation (' + (Math.abs(latestPrediction.predicted_return) * 100).toFixed(2) + '% < 1.2%)'}</div>\`
                                                 }
-                                            \` : '<div class="text-gray-500">Computing...</div>'}
+                                            \` : '<div class="text-gray-500">Loading prediction...</div>'}
                                         </div>
                                     </div>
                                 </div>
