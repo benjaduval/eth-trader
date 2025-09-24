@@ -1,4 +1,4 @@
-name = "eth-trader-v2"
+name = "alice-predictions"
 main = "dist/_worker.js"
 compatibility_date = "2025-09-18"
 compatibility_flags = ["nodejs_compat"]
@@ -22,7 +22,7 @@ database_id = "568a62ac-792b-4622-99ae-48f24b00f94c"
 
 # Routes pour les endpoints API
 [[routes]]
-pattern = "eth-trader-v2.pages.dev/*"
+pattern = "alice-predictions.pages.dev/*"
 zone_name = "pages.dev"
 
 # Configuration pour Pages

@@ -6,36 +6,42 @@
 
 ### 🎯 Objectif
 
-Permettre le trading automatisé d'ETH avec des signaux basés sur l'IA, des métriques de performance détaillées et un dashboard en temps réel, le tout en mode paper trading (sans risque financier).
+**Application 100% automatique** de trading ETH/BTC avec TimesFM, prédictions basées sur 450+ points historiques, signaux automatiques avec seuils >59% confiance + >1.2% variation, et monitoring continu des positions.
 
 ### ✨ Fonctionnalités Principales
 
-- 🤖 **Prédictions IA** avec TimesFM adapté pour l'edge computing
-- 📊 **Dashboard temps réel** avec graphiques et métriques
-- 💰 **Paper Trading Engine** avec P&L automatique
-- 🔔 **Notifications automatiques** (Telegram/Email)
-- 📈 **Intégration CoinGecko Pro** avec rate limiting intelligent
-- ⚡ **Architecture Serverless** sur Cloudflare Workers
-- 🎨 **Interface responsive** avec TailwindCSS et Chart.js
+- 🤖 **TimesFM Prédictions RÉELLES** - 450+ points historiques, RSI, EMA, Bollinger Bands
+- 🔄 **Automatisation Complète** - Cycles 1h collecte + prédictions + trading automatique  
+- ⚙️ **Seuils Intelligents** - >59% confiance + >1.2% variation pour déclenchement
+- 📊 **Dashboard AI Avancé** - Interface complète avec graphiques temps réel
+- 💰 **Paper Trading Engine** - Stop-loss/take-profit + monitoring 5min
+- 📈 **CoinGecko Pro API** - Données ETH/BTC temps réel avec rate limiting 85%
+- ⚡ **Cloudflare Pages** - Architecture serverless ultra-rapide
+- 🎯 **UptimeRobot Ready** - Endpoints automation pour monitoring externe
 
 ## 🌐 URLs d'Accès
 
-### 🖥️ Application (Développement)
-- **Dashboard**: https://3000-i82pu0yy6otvpio1ygj9w-6532622b.e2b.dev
-- **API Health**: https://3000-i82pu0yy6otvpio1ygj9w-6532622b.e2b.dev/api/health
-- **GitHub**: (À configurer après push)
+### 🖥️ Application Production
+- **Dashboard**: https://alice-predictions.pages.dev/
+- **Terminal AI**: https://alice-predictions.pages.dev/terminal
+- **Login**: https://alice-predictions.pages.dev/login
+- **GitHub**: https://github.com/benjaduval/eth-trader
 
-### 📡 Endpoints API Principaux
+### 📡 Endpoints API Complets
 
-| Endpoint | Méthode | Description |
-|----------|---------|-------------|
-| `/api/health` | GET | Statut du service |
-| `/api/market/current` | GET | Données de marché complètes |
-| `/api/market/price` | GET | Prix ETH actuel |
-| `/api/trading/signal` | POST | Générer et exécuter un signal |
-| `/api/trading/positions` | GET | Positions ouvertes |
-| `/api/trading/metrics` | GET | Métriques de performance |
-| `/api/dashboard` | GET | Données complètes du dashboard |
+| Endpoint | Méthode | Description | UptimeRobot |
+|----------|---------|-------------|-------------|
+| `/api/health` | GET | Statut du service | ✅ |
+| `/api/market/ETH` | GET | Données ETH temps réel (CoinGecko) | - |
+| `/api/market/BTC` | GET | Données BTC temps réel (CoinGecko) | - |
+| `/api/predictions/ETH` | GET | Prédictions TimesFM ETH réelles | - |
+| `/api/predictions/BTC` | GET | Prédictions TimesFM BTC réelles | - |
+| `/api/automation/hourly` | GET | **Cycle 1h complet** (collecte + prédictions + trading) | ✅ Requis |
+| `/api/trading/check-positions` | GET | **Monitoring 5min positions** (stop-loss/take-profit) | ✅ Requis |
+| `/api/predictions/history` | GET | Historique prédictions TimesFM | - |
+| `/api/trades/history` | GET | Historique des trades | - |
+| `/api/trades/execute` | POST | Exécuter trade manuel | - |
+| `/api/portfolio` | GET | Statut portfolio | - |
 
 ## 🏗️ Architecture Technique
 
