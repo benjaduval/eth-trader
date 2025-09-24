@@ -490,48 +490,23 @@ app.get('/', (c) => {
   `)
 })
 
-// Route du terminal complet - INTERFACE ORIGINALE COMPLETE
+// Route du terminal complet - NOUVELLE INTERFACE RESPONSIVE AVEC TRADINGVIEW
 app.get('/terminal', (c) => {
   return c.html(`<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ethereum AI Trading Terminal - Neural Network Powered Trading</title>
+    <title>Alice Predictions - AI Trading Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- TradingView Chart Widget -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #000000;
             min-height: 100vh;
-            background-attachment: fixed;
-        }
-
-        .neural-network-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            opacity: 0.1;
-            background-image: radial-gradient(circle at 20% 50%, rgba(147, 51, 234, 0.3) 0%, transparent 50%),
-                              radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.3) 0%, transparent 50%),
-                              radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.3) 0%, transparent 50%);
-            animation: neural-pulse 8s ease-in-out infinite;
-        }
-
-        @keyframes neural-pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 0.1;
-            }
-            50% {
-                transform: scale(1.1);
-                opacity: 0.15;
-            }
         }
 
         .glassmorphism {
@@ -611,16 +586,6 @@ app.get('/terminal', (c) => {
             transform: translateY(0) scale(0.98);
         }
 
-        .circuit-pattern {
-            background-image: 
-                radial-gradient(circle at 25% 25%, rgba(147, 51, 234, 0.2) 2px, transparent 2px),
-                radial-gradient(circle at 75% 75%, rgba(59, 130, 246, 0.2) 2px, transparent 2px),
-                linear-gradient(0deg, rgba(147, 51, 234, 0.1) 50%, transparent 50%),
-                linear-gradient(90deg, rgba(59, 130, 246, 0.1) 50%, transparent 50%);
-            background-size: 40px 40px, 40px 40px, 20px 20px, 20px 20px;
-            background-position: 0 0, 20px 20px, 0 0, 0 0;
-        }
-
         .fadeInUp {
             animation: fadeInUp 0.6s ease-out;
         }
@@ -635,52 +600,86 @@ app.get('/terminal', (c) => {
                 transform: translateY(0);
             }
         }
+
+        /* TradingView Widget Responsive */
+        #tradingview-widget {
+            width: 100% !important;
+            height: 400px !important;
+            position: relative;
+        }
+        
+        @media (max-width: 768px) {
+            #tradingview-widget {
+                height: 300px !important;
+            }
+        }
+
+        /* Responsive Grid */
+        @media (max-width: 1024px) {
+            .desktop-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        /* Responsive Cards */
+        .responsive-card {
+            background: rgba(17, 25, 40, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 640px) {
+            .responsive-card {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
-    <!-- Neural Network Background -->
-    <div class="neural-network-bg"></div>
-    
     <!-- Loading Screen -->
-    <div id="loading" class="fixed inset-0 bg-gray-900/95 flex items-center justify-center z-50">
+    <div id="loading" class="fixed inset-0 bg-black flex items-center justify-center z-50">
         <div class="text-center">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-            <h2 class="text-xl font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">Ethereum AI Trading Terminal</h2>
-            <p id="loadingText" class="text-gray-400">Initialisation du réseau neuronal...</p>
+            <h2 class="text-xl font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2">Alice Predictions AI Terminal</h2>
+            <p id="loadingText" class="text-gray-400">Initialisation TimesFM...</p>
         </div>
     </div>
 
     <!-- Main Dashboard -->
-    <div id="dashboard" class="hidden min-h-screen bg-gradient-to-br from-gray-900/90 via-purple-900/90 to-blue-900/90 backdrop-blur-sm circuit-pattern">
+    <div id="dashboard" class="hidden min-h-screen bg-black">
         <!-- Header -->
-        <header class="bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-lg border-b border-purple-500/30 glassmorphism">
-            <div class="container mx-auto px-6 py-4">
-                <div class="flex flex-col md:flex-row justify-between items-center">
-                    <div class="flex items-center space-x-4 mb-4 md:mb-0">
-                        <div class="text-2xl eth-glow">⚡</div>
+        <header class="responsive-card border-b border-gray-700">
+            <div class="container mx-auto">
+                <div class="flex flex-col lg:flex-row justify-between items-center">
+                    <div class="flex items-center space-x-4 mb-4 lg:mb-0">
+                        <div class="text-2xl eth-glow">🔮</div>
                         <div>
-                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
-                                Ethereum AI Trading Terminal
+                            <h1 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
+                                Alice Predictions
                             </h1>
-                            <p class="text-purple-300 text-sm">Neural Network Powered Trading System</p>
+                            <p class="text-purple-300 text-sm">TimesFM AI Trading System</p>
                         </div>
                     </div>
                     
-                    <div class="flex items-center space-x-4">
+                    <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
                         <!-- Crypto Selector avec support ETH/BTC -->
                         <div class="flex items-center space-x-2">
                             <label class="text-sm text-purple-300 font-medium">Asset:</label>
-                            <select id="cryptoSelector" class="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 backdrop-blur-sm">
+                            <select id="cryptoSelector" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20">
                                 <option value="ETH">⚡ Ethereum (ETH)</option>
                                 <option value="BTC">₿ Bitcoin (BTC)</option>
                             </select>
                         </div>
-                        <div class="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-purple-500/30">
-                            <span class="text-sm text-purple-300 font-medium">🤖 AI Mode</span>
+                        <div class="bg-green-500/20 px-3 py-1 rounded-lg border border-green-500/30">
+                            <span class="text-sm text-green-300 font-medium">🤖 AI Live</span>
                         </div>
                         <div class="flex items-center space-x-1">
                             <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span class="text-xs text-gray-400">Live</span>
+                            <span class="text-xs text-gray-400">Online</span>
                         </div>
                     </div>
                 </div>
@@ -862,95 +861,89 @@ app.get('/terminal', (c) => {
                 const cryptoIcon = this.currentCrypto === 'ETH' ? '⚡' : '₿';
                 const cryptoColor = this.currentCrypto === 'ETH' ? 'purple' : 'orange';
                 const latestPrediction = dashboard.latest_predictions?.[0];
+                const tradingViewSymbol = this.currentCrypto === 'ETH' ? 'BINANCE:ETHUSDT' : 'BINANCE:BTCUSDT';
                 
                 const content = \`
-                    <!-- Ethereum AI Trading Terminal Header -->
-                    <div class="ethereum-ai-header mb-8">
-                        <div class="flex items-center justify-between glassmorphism rounded-2xl p-6 border border-purple-500/30">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl">\${cryptoIcon}</div>
+                    <!-- Price Header -->
+                    <div class="responsive-card mb-6">
+                        <div class="flex flex-col lg:flex-row justify-between items-center">
+                            <div class="flex items-center space-x-4 mb-4 lg:mb-0">
+                                <div class="w-12 h-12 bg-gradient-to-br from-\${cryptoColor}-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl">\${cryptoIcon}</div>
                                 <div>
-                                    <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                                        \${this.currentCrypto} AI Trading Terminal
+                                    <h1 class="text-2xl lg:text-3xl font-bold text-white">
+                                        \${this.currentCrypto} Terminal
                                     </h1>
-                                    <p class="text-purple-300">Neural Network Powered Trading System</p>
+                                    <p class="text-gray-300">TimesFM AI Predictions</p>
                                 </div>
                             </div>
-                            <div class="flex items-center space-x-4">
-                                <div class="ai-status-indicator">
-                                    <div class="flex items-center space-x-2 bg-green-500/20 px-4 py-2 rounded-lg">
-                                        <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                                        <span class="text-green-300 text-sm font-medium">AI System Online</span>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-2xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
-                                    <div class="text-sm text-purple-300">\${this.currentCrypto}/USD</div>
-                                </div>
+                            <div class="text-center lg:text-right">
+                                <div class="text-2xl lg:text-3xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
+                                <div class="text-sm text-gray-400">\${this.currentCrypto}/USD • Live Price</div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Main Terminal Grid -->
-                    <div class="ethereum-ai-grid grid grid-cols-1 lg:grid-cols-3 gap-6 fadeInUp">
-                        <!-- Left Column: Market Analysis -->
+                    <!-- Main Grid Layout -->
+                    <div class="desktop-grid grid grid-cols-1 lg:grid-cols-3 gap-6 fadeInUp">
+                        <!-- Left Column: Chart & Market Data -->
                         <div class="lg:col-span-2 space-y-6">
-                            <!-- ETH Market Analysis -->
-                            <div class="ethereum-market-analysis glassmorphism rounded-2xl p-6 border border-\${cryptoColor}-500/30">
+                            <!-- TradingView Chart -->
+                            <div class="responsive-card">
                                 <div class="flex items-center justify-between mb-6">
                                     <h2 class="text-xl font-bold text-white flex items-center">
                                         <span class="mr-3">📈</span>
                                         \${this.currentCrypto} Market Analysis
                                     </h2>
-                                    <div class="text-sm text-\${cryptoColor}-300">Live Data • \${cryptoIcon}</div>
+                                    <div class="text-sm text-\${cryptoColor}-300">Live TradingView • \${cryptoIcon}</div>
                                 </div>
                                 
-                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                                    <div class="metric-card bg-purple-900/30 p-4 rounded-lg border border-purple-500/20">
-                                        <div class="text-purple-300 text-sm">Current Price</div>
-                                        <div class="text-2xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
+                                <!-- Market Metrics -->
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                                    <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
+                                        <div class="text-gray-300 text-xs lg:text-sm">Current Price</div>
+                                        <div class="text-lg lg:text-xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
                                         <div class="text-green-400 text-xs">+2.4%</div>
                                     </div>
-                                    <div class="metric-card bg-blue-900/30 p-4 rounded-lg border border-blue-500/20">
-                                        <div class="text-blue-300 text-sm">24h Volume</div>
-                                        <div class="text-xl font-bold text-white">\${dashboard.market_data?.volume_24h ? '$' + (dashboard.market_data.volume_24h / 1e9).toFixed(2) + 'B' : 'N/A'}</div>
-                                        <div class="text-blue-400 text-xs">High Activity</div>
+                                    <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
+                                        <div class="text-gray-300 text-xs lg:text-sm">24h Volume</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.volume_24h ? '$' + (dashboard.market_data.volume_24h / 1e9).toFixed(1) + 'B' : 'N/A'}</div>
+                                        <div class="text-blue-400 text-xs">High</div>
                                     </div>
-                                    <div class="metric-card bg-green-900/30 p-4 rounded-lg border border-green-500/20">
-                                        <div class="text-green-300 text-sm">Market Cap</div>
-                                        <div class="text-xl font-bold text-white">\${dashboard.market_data?.market_cap ? '$' + (dashboard.market_data.market_cap / 1e9).toFixed(0) + 'B' : 'N/A'}</div>
+                                    <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
+                                        <div class="text-gray-300 text-xs lg:text-sm">Market Cap</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.market_cap ? '$' + (dashboard.market_data.market_cap / 1e9).toFixed(0) + 'B' : 'N/A'}</div>
                                         <div class="text-green-400 text-xs">Rank #\${this.currentCrypto === 'ETH' ? '2' : '1'}</div>
                                     </div>
-                                    <div class="metric-card bg-orange-900/30 p-4 rounded-lg border border-orange-500/20">
-                                        <div class="text-orange-300 text-sm">Volatility</div>
-                                        <div class="text-xl font-bold text-white">\${dashboard.market_data?.price_change_percentage_24h ? Math.abs(dashboard.market_data.price_change_percentage_24h).toFixed(1) + '%' : 'N/A'}</div>
+                                    <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
+                                        <div class="text-gray-300 text-xs lg:text-sm">Volatility</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.price_change_percentage_24h ? Math.abs(dashboard.market_data.price_change_percentage_24h).toFixed(1) + '%' : 'N/A'}</div>
                                         <div class="text-orange-400 text-xs">Moderate</div>
                                     </div>
                                 </div>
                                 
-                                <!-- Price Chart -->
-                                <div class="chart-container bg-black/30 rounded-lg p-4 h-64 flex items-center justify-center border border-gray-600/30">
-                                    <canvas id="cryptoPriceChart" class="w-full h-full"></canvas>
+                                <!-- TradingView Widget -->
+                                <div class="bg-black rounded-lg border border-gray-600">
+                                    <div id="tradingview-widget" style="width:100%;height:400px;"></div>
                                 </div>
                             </div>
 
-                            <!-- TimesFM Neural Predictions -->
-                            <div class="timesfm-neural glassmorphism rounded-2xl p-6 border border-blue-500/30">
+                            <!-- TimesFM Latest Prediction -->
+                            <div class="responsive-card">
                                 <div class="flex items-center justify-between mb-6">
                                     <h2 class="text-xl font-bold text-white flex items-center">
                                         <span class="mr-3">🧠</span>
-                                        TimesFM Neural Predictions
+                                        Latest TimesFM Prediction
                                     </h2>
                                     <div class="flex items-center space-x-2">
                                         <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                                        <span class="text-blue-300 text-sm">AI Computing</span>
+                                        <span class="text-blue-300 text-sm">AI Active</span>
                                     </div>
                                 </div>
                                 
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div class="prediction-card bg-blue-900/40 p-4 rounded-lg border border-blue-400/30">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="bg-blue-800/40 p-4 rounded-lg border border-blue-400/30">
                                         <div class="text-blue-300 text-sm mb-2">24h Prediction</div>
-                                        <div class="text-2xl font-bold text-white mb-1">
+                                        <div class="text-xl lg:text-2xl font-bold text-white mb-1">
                                             $\${latestPrediction?.predicted_price?.toLocaleString() || 'Computing...'}
                                         </div>
                                         <div class="text-xs text-blue-400">
@@ -958,15 +951,15 @@ app.get('/terminal', (c) => {
                                         </div>
                                     </div>
                                     
-                                    <div class="prediction-card bg-green-900/40 p-4 rounded-lg border border-green-400/30">
+                                    <div class="bg-green-800/40 p-4 rounded-lg border border-green-400/30">
                                         <div class="text-green-300 text-sm mb-2">Expected Return</div>
-                                        <div class="text-2xl font-bold \${latestPrediction?.predicted_return && latestPrediction.predicted_return > 0 ? 'text-green-400' : 'text-red-400'} mb-1">
+                                        <div class="text-xl lg:text-2xl font-bold \${latestPrediction?.predicted_return && latestPrediction.predicted_return > 0 ? 'text-green-400' : 'text-red-400'} mb-1">
                                             \${latestPrediction?.predicted_return ? (latestPrediction.predicted_return * 100).toFixed(2) + '%' : 'N/A'}
                                         </div>
                                         <div class="text-xs text-green-400">24h Horizon</div>
                                     </div>
                                     
-                                    <div class="prediction-card bg-purple-900/40 p-4 rounded-lg border border-purple-400/30">
+                                    <div class="bg-purple-800/40 p-4 rounded-lg border border-purple-400/30">
                                         <div class="text-purple-300 text-sm mb-2">Risk Range</div>
                                         <div class="text-sm font-bold text-white mb-1">
                                             \${latestPrediction?.quantile_10 ? '$' + latestPrediction.quantile_10.toLocaleString() : 'N/A'} - \${latestPrediction?.quantile_90 ? '$' + latestPrediction.quantile_90.toLocaleString() : 'N/A'}
@@ -974,39 +967,20 @@ app.get('/terminal', (c) => {
                                         <div class="text-xs text-purple-400">90% Confidence</div>
                                     </div>
                                 </div>
-                                
-                                <!-- Neural Network Activity -->
-                                <div class="mt-4 p-4 bg-black/30 rounded-lg border border-gray-600/30">
-                                    <div class="text-sm text-gray-300 mb-2">Neural Network Activity:</div>
-                                    <div class="flex items-center space-x-4 text-xs">
-                                        <div class="flex items-center space-x-1">
-                                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                            <span class="text-green-300">Pattern Recognition</span>
-                                        </div>
-                                        <div class="flex items-center space-x-1">
-                                            <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                                            <span class="text-blue-300">Time Series Analysis</span>
-                                        </div>
-                                        <div class="flex items-center space-x-1">
-                                            <div class="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                                            <span class="text-purple-300">Market Sentiment</span>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                         
-                        <!-- Right Column: Portfolio & Controls -->
+                        <!-- Right Column: Portfolio & History -->
                         <div class="space-y-6">
                             <!-- Portfolio -->
-                            <div class="portfolio-section glassmorphism rounded-2xl p-6 border border-green-500/30">
+                            <div class="responsive-card">
                                 <h2 class="text-xl font-bold text-white flex items-center mb-6">
                                     <span class="mr-3">💼</span>
                                     Portfolio
                                 </h2>
                                 
                                 <div class="space-y-4">
-                                    <div class="balance-card bg-green-900/30 p-4 rounded-lg border border-green-500/20">
+                                    <div class="bg-green-800/30 p-4 rounded-lg border border-green-500/20">
                                         <div class="text-green-300 text-sm">Total Balance</div>
                                         <div class="text-2xl font-bold text-white">
                                             $\${dashboard.current_balance?.toLocaleString() || '10,000'}
@@ -1018,7 +992,7 @@ app.get('/terminal', (c) => {
                                         <div class="text-sm text-gray-300 mb-2">Active Positions:</div>
                                         <div class="space-y-2">
                                             \${dashboard.active_positions?.length ? dashboard.active_positions.map(position => \`
-                                                <div class="position-item bg-gray-800/50 p-3 rounded-lg border border-gray-600/30">
+                                                <div class="bg-gray-800/50 p-3 rounded-lg border border-gray-600">
                                                     <div class="flex justify-between items-center">
                                                         <div class="text-white font-medium">\${position.type?.toUpperCase() || 'N/A'}</div>
                                                         <div class="\${position.pnl && position.pnl > 0 ? 'text-green-400' : 'text-red-400'}">
@@ -1035,25 +1009,30 @@ app.get('/terminal', (c) => {
                                 </div>
                             </div>
 
-                            <!-- Predictions History -->
-                            <div class="predictions-history glassmorphism rounded-2xl p-6 border border-blue-500/30 mb-6">
+                            <!-- TimesFM Predictions History -->
+                            <div class="responsive-card">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h2 class="text-xl font-bold text-white flex items-center">
-                                        <span class="mr-3">📊</span>
-                                        Predictions History
+                                    <h2 class="text-lg font-bold text-white flex items-center">
+                                        <span class="mr-2">🔮</span>
+                                        TimesFM Predictions (\${this.currentCrypto})
                                     </h2>
-                                    <div class="text-sm text-blue-300">\${this.predictionsHistory.length} predictions</div>
+                                    <div class="text-sm text-blue-300">\${this.predictionsHistory.filter(p => p.crypto === this.currentCrypto).length} predictions</div>
                                 </div>
                                 
-                                <div class="predictions-list max-h-64 overflow-y-auto space-y-2">
-                                    \${this.predictionsHistory.slice(0, 5).map(prediction => \`
-                                        <div class="prediction-item bg-gray-800/50 p-3 rounded-lg border border-gray-600/30 cursor-pointer hover:bg-gray-700/50 transition-colors" data-prediction-id="\${prediction.id}">
-                                            <div class="flex justify-between items-center">
-                                                <div class="text-white font-medium">\${prediction.crypto} • \${prediction.confidence ? (prediction.confidence * 100).toFixed(1) : 'N/A'}% confidence</div>
-                                                <div class="text-sm text-gray-400">\${new Date(prediction.timestamp).toLocaleTimeString()}</div>
+                                <div class="max-h-64 overflow-y-auto space-y-2">
+                                    \${this.predictionsHistory.filter(p => p.crypto === this.currentCrypto).slice(0, 8).map(prediction => \`
+                                        <div class="bg-gray-800/50 p-3 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-700/50 transition-colors" data-prediction-id="\${prediction.id}">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <div class="text-white text-sm font-medium">\${prediction.confidence ? (prediction.confidence * 100).toFixed(1) : 'N/A'}% confidence</div>
+                                                <div class="text-xs text-gray-400">\${new Date(prediction.timestamp).toLocaleTimeString()}</div>
                                             </div>
-                                            <div class="text-sm text-gray-300 mt-1">
-                                                Predicted: $\${prediction.predicted_price?.toLocaleString() || 'N/A'}
+                                            <div class="flex justify-between items-center">
+                                                <div class="text-xs text-gray-300">
+                                                    Predicted: $\${prediction.predicted_price?.toLocaleString() || 'N/A'}
+                                                </div>
+                                                <div class="text-xs \${prediction.predicted_return && prediction.predicted_return > 0 ? 'text-green-400' : 'text-red-400'}">
+                                                    \${prediction.predicted_return ? (prediction.predicted_return * 100).toFixed(2) + '%' : 'N/A'}
+                                                </div>
                                             </div>
                                         </div>
                                     \`).join('') || '<div class="text-gray-500 text-center py-4">No predictions yet</div>'}
@@ -1061,24 +1040,29 @@ app.get('/terminal', (c) => {
                             </div>
 
                             <!-- Trade History -->
-                            <div class="trades-history glassmorphism rounded-2xl p-6 border border-green-500/30 mb-6">
+                            <div class="responsive-card">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h2 class="text-xl font-bold text-white flex items-center">
-                                        <span class="mr-3">📈</span>
-                                        Trade History
+                                    <h2 class="text-lg font-bold text-white flex items-center">
+                                        <span class="mr-2">📈</span>
+                                        Trade History (\${this.currentCrypto})
                                     </h2>
-                                    <div class="text-sm text-green-300">\${this.tradesHistory.length} trades</div>
+                                    <div class="text-sm text-green-300">\${this.tradesHistory.filter(t => t.crypto === this.currentCrypto).length} trades</div>
                                 </div>
                                 
-                                <div class="trades-list max-h-64 overflow-y-auto space-y-2">
-                                    \${this.tradesHistory.slice(0, 5).map(trade => \`
-                                        <div class="trade-item bg-gray-800/50 p-3 rounded-lg border border-gray-600/30">
-                                            <div class="flex justify-between items-center">
-                                                <div class="text-white font-medium">\${trade.crypto} • \${trade.action}</div>
-                                                <div class="text-sm text-gray-400">\${new Date(trade.timestamp).toLocaleTimeString()}</div>
+                                <div class="max-h-64 overflow-y-auto space-y-2">
+                                    \${this.tradesHistory.filter(t => t.crypto === this.currentCrypto).slice(0, 8).map(trade => \`
+                                        <div class="bg-gray-800/50 p-3 rounded-lg border border-gray-600">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <div class="text-white text-sm font-medium">\${trade.action} • \${trade.amount}</div>
+                                                <div class="text-xs text-gray-400">\${new Date(trade.timestamp).toLocaleString('fr-FR', {hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'})}</div>
                                             </div>
-                                            <div class="text-sm text-gray-300 mt-1">
-                                                \${trade.amount} @ $\${trade.price?.toLocaleString() || 'N/A'}
+                                            <div class="flex justify-between items-center">
+                                                <div class="text-xs text-gray-300">
+                                                    Price: $\${trade.price?.toLocaleString() || 'N/A'}
+                                                </div>
+                                                <div class="text-xs text-blue-400">
+                                                    Total: $\${trade.total?.toLocaleString() || 'N/A'}
+                                                </div>
                                             </div>
                                         </div>
                                     \`).join('') || '<div class="text-gray-500 text-center py-4">No trades yet</div>'}
@@ -1086,28 +1070,103 @@ app.get('/terminal', (c) => {
                             </div>
 
                             <!-- Control Panel -->
-                            <div class="control-panel glassmorphism rounded-2xl p-6 border border-red-500/30">
-                                <h2 class="text-xl font-bold text-white flex items-center mb-6">
-                                    <span class="mr-3">🎛️</span>
-                                    Control Panel
+                            <div class="responsive-card">
+                                <h2 class="text-lg font-bold text-white flex items-center mb-4">
+                                    <span class="mr-2">🎛️</span>
+                                    Controls
                                 </h2>
                                 
                                 <div class="space-y-3">
-                                    <button id="generatePrediction" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-105">
+                                    <button id="generatePrediction" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 text-sm">
                                         🧠 Generate Prediction
                                     </button>
                                     
-                                    <button id="executeTradeSignal" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-105">
-                                        📈 Execute Trade Signal
+                                    <button id="executeTradeSignal" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 text-sm">
+                                        📈 Execute Trade
                                     </button>
                                     
-                                    <button id="updateMarketData" class="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-105">
-                                        📊 Update Market Data
+                                    <button id="refreshDashboard" class="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-medium py-2 px-3 rounded-lg transition-all duration-200 text-sm">
+                                        🔄 Refresh
                                     </button>
-                                    
-                                    <button id="refreshDashboard" class="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-105">
-                                        🔄 Refresh Dashboard
-                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Strategy Explanation Section -->
+                    <div class="responsive-card mt-8">
+                        <h2 class="text-2xl font-bold text-white flex items-center mb-6">
+                            <span class="mr-3">📚</span>
+                            Alice Predictions - Strategy & Interface Guide
+                        </h2>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Interface Explanation -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                                    <span class="mr-2">🖥️</span>
+                                    Interface Elements
+                                </h3>
+                                <div class="space-y-3 text-sm text-gray-300">
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">📈 TradingView Chart</div>
+                                        <div>Professional live chart with real-time \${this.currentCrypto}/USDT data from Binance. Responsive design adapts to mobile and desktop.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">🔮 TimesFM Predictions</div>
+                                        <div>AI predictions updated hourly using 450+ historical data points. Shows 24h price prediction with confidence score and risk range.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">💼 Portfolio & History</div>
+                                        <div>Real-time balance tracking with complete prediction and trade history filtered by selected asset (ETH/BTC).</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">⚡ Asset Switcher</div>
+                                        <div>Toggle between Ethereum (ETH) and Bitcoin (BTC). All data updates automatically including charts and history.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Strategy Explanation -->
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                                    <span class="mr-2">🧠</span>
+                                    Trading Strategy
+                                </h3>
+                                <div class="space-y-3 text-sm text-gray-300">
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">🤖 TimesFM AI Model</div>
+                                        <div>Advanced neural network analyzing 450+ hourly data points with technical indicators: RSI, EMA 20/50, Bollinger Bands, ATR, momentum patterns.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">📊 Execution Thresholds</div>
+                                        <div><strong>Confidence:</strong> >59% | <strong>Variation:</strong> >1.2% | Only trades meeting both criteria are executed automatically.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">🔄 Automation Cycles</div>
+                                        <div><strong>Hourly:</strong> Data collection + AI predictions + trade signals | <strong>5-minute:</strong> Position monitoring + stop-loss/take-profit management.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">🛡️ Risk Management</div>
+                                        <div>Automatic stop-loss at -2% and take-profit at +3%. Intelligent position closing based on 4-hour prediction updates.</div>
+                                    </div>
+                                    <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-600">
+                                        <div class="font-medium text-white mb-1">📈 Data Sources</div>
+                                        <div>CoinGecko Pro API (500 calls/min limit with 85% safety buffer), Cloudflare D1 database for historical storage, UptimeRobot monitoring.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-purple-900/20 rounded-lg border border-purple-500/30">
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-white mb-2">🚀 Alice Predictions Status</div>
+                                <div class="text-sm text-purple-300">
+                                    Fully automated AI trading system powered by TimesFM neural network • Live since deployment • 
+                                    <span class="text-green-400 font-medium">System Online</span>
+                                </div>
+                                <div class="text-xs text-gray-400 mt-2">
+                                    Last updated: \${new Date().toLocaleString('fr-FR')} • Version 2.1.0
                                 </div>
                             </div>
                         </div>
@@ -1116,9 +1175,9 @@ app.get('/terminal', (c) => {
                 
                 document.getElementById('dashboardContent').innerHTML = content;
                 
-                // Initialiser le graphique
+                // Initialiser TradingView Widget
                 setTimeout(() => {
-                    this.initializePriceChart(dashboard);
+                    this.initializeTradingView();
                 }, 100);
             }
 
@@ -1179,10 +1238,6 @@ app.get('/terminal', (c) => {
                             this.showMessage('❌ Erreur lors du trade', 'error');
                         }
                     },
-                    updateMarketData: () => {
-                        this.showMessage('📊 Mise à jour des données de marché...', 'info');
-                        this.loadTerminal();
-                    },
                     refreshDashboard: () => {
                         this.showMessage('🔄 Actualisation du dashboard...', 'info');
                         this.loadTerminal();
@@ -1205,83 +1260,74 @@ app.get('/terminal', (c) => {
                 });
             }
 
-            initializePriceChart(dashboard) {
-                const canvas = document.getElementById('cryptoPriceChart');
-                if (!canvas) return;
-
-                const ctx = canvas.getContext('2d');
-                const currentPrice = dashboard.current_price || (this.currentCrypto === 'ETH' ? 4600 : 94000);
+            initializeTradingView() {
+                const container = document.getElementById('tradingview-widget');
+                if (!container) return;
                 
-                // RESTAURATION: 400+ points de données - 1 POINT PAR HEURE comme stratégie originale
-                const hours = 400; // 400+ heures pour TimesFM (stratégie originale)
-                const pointsPerHour = 1; // 1 POINT PAR HEURE - CRUCIAL pour TimesFM
-                const totalPoints = hours * pointsPerHour;
-                const data = [];
-                const labels = [];
-
-                // Générer 400+ points de données (1 par heure - TimesFM requirement)
-                for (let i = totalPoints; i >= 0; i--) {
-                    const time = new Date(Date.now() - i * 60 * 60 * 1000); // 1 heure exacte
-                    labels.push(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-                    
-                    // Variation réaliste pour TimesFM (stratégie originale)
-                    const variation = (Math.random() - 0.5) * 0.02;
-                    const price = currentPrice * (1 + variation * (i / totalPoints));
-                    data.push(price);
-                }
-
-                if (this.priceChart) {
-                    this.priceChart.destroy();
-                }
-
-                this.priceChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels.filter((_, i) => i % 4 === 0),
-                        datasets: [{
-                            label: \`\${this.currentCrypto} Price (USD)\`,
-                            data: data.filter((_, i) => i % 4 === 0),
-                            borderColor: this.currentCrypto === 'ETH' ? 'rgb(147, 51, 234)' : 'rgb(249, 115, 22)',
-                            backgroundColor: this.currentCrypto === 'ETH' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(249, 115, 22, 0.1)',
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 6
-                        }]
+                // Clear existing widget
+                container.innerHTML = '';
+                
+                const symbol = this.currentCrypto === 'ETH' ? 'BINANCE:ETHUSDT' : 'BINANCE:BTCUSDT';
+                
+                // Create TradingView widget
+                new TradingView.widget({
+                    container_id: 'tradingview-widget',
+                    width: '100%',
+                    height: '400',
+                    symbol: symbol,
+                    interval: '1H', // 1 hour intervals for TimesFM data consistency
+                    timezone: 'Etc/UTC',
+                    theme: 'dark',
+                    style: '1',
+                    locale: 'en',
+                    toolbar_bg: '#f1f3f6',
+                    enable_publishing: false,
+                    allow_symbol_change: false,
+                    hide_side_toolbar: false,
+                    details: true,
+                    hotlist: true,
+                    calendar: false,
+                    studies: [
+                        'RSI@tv-basicstudies',        // RSI - Used by TimesFM
+                        'MAExp@tv-basicstudies',      // EMA - Used by TimesFM
+                        'BB@tv-basicstudies',         // Bollinger Bands - Used by TimesFM
+                        'ATR@tv-basicstudies'         // ATR - Used by TimesFM
+                    ],
+                    overrides: {
+                        'paneProperties.background': '#000000',
+                        'paneProperties.vertGridProperties.color': '#1f2937',
+                        'paneProperties.horzGridProperties.color': '#1f2937',
+                        'symbolWatermarkProperties.transparency': 90,
+                        'scalesProperties.textColor': '#9ca3af',
+                        'mainSeriesProperties.candleStyle.wickUpColor': '#10b981',
+                        'mainSeriesProperties.candleStyle.wickDownColor': '#ef4444'
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        },
-                        scales: {
-                            x: {
-                                grid: {
-                                    color: 'rgba(75, 85, 99, 0.3)'
-                                },
-                                ticks: {
-                                    color: 'rgba(156, 163, 175, 0.8)',
-                                    maxTicksLimit: 8
-                                }
-                            },
-                            y: {
-                                grid: {
-                                    color: 'rgba(75, 85, 99, 0.3)'
-                                },
-                                ticks: {
-                                    color: 'rgba(156, 163, 175, 0.8)',
-                                    callback: function(value) {
-                                        return '$' + value.toLocaleString();
-                                    }
-                                }
-                            }
-                        }
+                    disabled_features: [
+                        'use_localstorage_for_settings',
+                        'volume_force_overlay',
+                        'create_volume_indicator_by_default'
+                    ],
+                    enabled_features: [
+                        'study_templates',
+                        'side_toolbar_in_fullscreen_mode'
+                    ],
+                    loading_screen: {
+                        backgroundColor: '#000000',
+                        foregroundColor: '#6366f1'
                     }
                 });
+                
+                // Responsive behavior
+                const handleResize = () => {
+                    if (window.innerWidth <= 768) {
+                        container.style.height = '300px';
+                    } else {
+                        container.style.height = '400px';
+                    }
+                };
+                
+                window.addEventListener('resize', handleResize);
+                handleResize(); // Initial call
             }
 
             showPredictionAnalysis(predictionId) {
