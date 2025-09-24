@@ -2,7 +2,7 @@
   "name": "eth-trader",
   "type": "module",
   "description": "ETH Paper Trading avec TimesFM et CoinGecko Pro - Cloudflare Pages",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "dev": "vite",
     "dev:sandbox": "wrangler pages dev dist --d1=eth-trader-production --local --ip 0.0.0.0 --port 3000",
