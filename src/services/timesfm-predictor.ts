@@ -44,7 +44,8 @@ export class TimesFMPredictor {
   async predictNextHours(
     symbol: string = 'ETHUSDT', 
     horizonHours: number = 24,
-    currentPrice: number
+    currentPrice: number,
+    saveToDb: boolean = true  // Par défaut, sauvegarde en DB (pour UptimeRobot)
   ): Promise<TimesFMPrediction> {
     const startTime = Date.now();
     
@@ -102,8 +103,13 @@ export class TimesFMPredictor {
         trend_strength: trendAnalysis.strength
       });
 
-      // Sauvegarder en base
-      await this.savePrediction(prediction);
+      // Sauvegarder en base SEULEMENT si demandé explicitement (UptimeRobot cycles)
+      if (saveToDb) {
+        await this.savePrediction(prediction);
+        console.log(`💾 Prediction saved to DB: ${prediction.symbol} - ${(prediction.predicted_return * 100).toFixed(2)}%`)
+      } else {
+        console.log(`🔍 Manual prediction generated (not saved): ${prediction.symbol} - ${(prediction.predicted_return * 100).toFixed(2)}%`)
+      }
       
       return prediction;
     } catch (error) {
@@ -329,20 +335,43 @@ export class TimesFMPredictor {
 
   private async savePrediction(prediction: TimesFMPrediction): Promise<void> {
     try {
+      // Generate unique prediction ID
+      const predictionId = `${Date.now()}_${prediction.symbol}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Convert symbol to crypto format (ETHUSDT -> ETH)
+      const crypto = prediction.symbol.replace('USDT', '')
+      
+      // Create current price (use predicted price as fallback for historical data)
+      const currentPrice = prediction.predicted_price / (1 + prediction.predicted_return)
+      
       await this.db.prepare(`
-        INSERT INTO predictions 
-        (symbol, timestamp, predicted_price, predicted_return, confidence_score, 
-         horizon_hours, quantile_10, quantile_90)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO predictions 
+        (prediction_id, crypto, current_price, predicted_price, confidence_score, 
+         predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
+         features_analyzed, analysis_data, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        prediction.symbol,
-        prediction.timestamp.toISOString(),
+        predictionId,
+        crypto,
+        currentPrice,
         prediction.predicted_price,
-        prediction.predicted_return,
         prediction.confidence_score,
-        prediction.horizon_hours,
+        prediction.predicted_return,
+        `${prediction.horizon_hours}h`,
+        'TimesFM-v2.1',
         prediction.quantile_10 || null,
-        prediction.quantile_90 || null
+        prediction.quantile_90 || null,
+        JSON.stringify(['RSI Technical Analysis', 'EMA 20/50 Crossovers', 'Bollinger Bands Position', 'Price Momentum Indicators', 'ATR Volatility Analysis', 'Market Trend Patterns']),
+        JSON.stringify({
+          trend: prediction.predicted_return > 0.005 ? 'bullish' : prediction.predicted_return < -0.005 ? 'bearish' : 'sideways',
+          volatility: prediction.confidence_score > 0.7 ? 'low' : 'moderate',
+          key_factors: [
+            `Expected ${(prediction.predicted_return * 100).toFixed(2)}% movement in ${prediction.horizon_hours}h`,
+            `Model confidence: ${(prediction.confidence_score * 100).toFixed(1)}%`,
+            `Analysis based on ${prediction.horizon_hours}h historical data`
+          ]
+        }),
+        prediction.timestamp.toISOString()
       ).run();
     } catch (error) {
       console.error('Error saving prediction:', error);

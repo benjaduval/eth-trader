@@ -145,23 +145,43 @@ app.get('/api/market/BTC', async (c) => {
   }
 })
 
-// TimesFM-powered predictions with real database analysis
+// MANUAL prediction generation - Uses existing DB data ONLY, does not modify DB
 app.get('/api/predictions/ETH', async (c) => {
   try {
-    // Get current market data first
+    // IMPORTANT: This endpoint should ONLY read existing data and generate predictions
+    // It should NOT modify the database or add new market data
+    
+    // Get current market data first (read-only)
     const marketResponse = await fetch(`${c.req.url.replace('/predictions/ETH', '/market/ETH')}`)
     const marketData = await marketResponse.json()
     const currentPrice = marketData.price || 4620.50
     
-    // Initialize TimesFM Predictor with D1 database
+    // Check if we have sufficient historical data in DB
+    const historicalCount = await c.env.DB.prepare(`
+      SELECT COUNT(*) as count FROM market_data 
+      WHERE symbol = 'ETHUSDT' 
+      ORDER BY timestamp DESC
+    `).first()
+    
+    if (!historicalCount || historicalCount.count < 100) {
+      return c.json({
+        success: false,
+        error: 'Insufficient historical data for prediction. UptimeRobot cycles must accumulate more data first.',
+        data_points_available: historicalCount?.count || 0,
+        required_minimum: 100,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Create a READ-ONLY predictor instance that won't save to DB
     const predictor = new TimesFMPredictor(c.env.DB)
     
-    // Generate REAL TimesFM prediction using 450+ historical data points
-    const timesfmPrediction = await predictor.predictNextHours('ETH', 24, currentPrice)
+    // Generate prediction using EXISTING data only - NO DB modification
+    const timesfmPrediction = await predictor.predictNextHours('ETH', 24, currentPrice, false)
     
-    // Transform to match frontend expected format
+    // Transform to match frontend expected format (manual prediction - unique ID)
     const prediction = {
-      id: Date.now() + '_ETH',
+      id: `manual_${Date.now()}_ETH_${Math.random().toString(36).substr(2, 3)}`,
       crypto: 'ETH',
       current_price: currentPrice,
       predicted_price: timesfmPrediction.predicted_price,
@@ -192,55 +212,9 @@ app.get('/api/predictions/ETH', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // Store prediction in D1 database for persistence
-    try {
-      // Create table if it doesn't exist (with proper schema)
-      await c.env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS predictions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          prediction_id TEXT UNIQUE NOT NULL,
-          crypto TEXT NOT NULL,
-          current_price REAL NOT NULL,
-          predicted_price REAL NOT NULL,
-          confidence_score REAL NOT NULL,
-          predicted_return REAL NOT NULL,
-          prediction_horizon TEXT NOT NULL DEFAULT '24h',
-          model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
-          quantile_10 REAL,
-          quantile_90 REAL,
-          features_analyzed TEXT,
-          analysis_data TEXT,
-          timestamp TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `).run()
-      
-      // Insert prediction with conflict resolution
-      await c.env.DB.prepare(`
-        INSERT OR REPLACE INTO predictions (
-          prediction_id, crypto, current_price, predicted_price, confidence_score, 
-          predicted_return, prediction_horizon, model_version, 
-          quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        prediction.id, prediction.crypto, prediction.current_price, prediction.predicted_price,
-        prediction.confidence, prediction.predicted_return, prediction.prediction_horizon,
-        prediction.model_version, prediction.quantile_10, prediction.quantile_90,
-        JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
-        prediction.timestamp
-      ).run()
-      
-      console.log(`✅ Successfully stored ${prediction.crypto} prediction with ID: ${prediction.id}`)
-    } catch (dbError) {
-      console.error('❌ Failed to store prediction in D1:', dbError)
-      // Return error in response so frontend can handle it
-      return c.json({
-        success: false,
-        error: 'Failed to store prediction in database',
-        db_error: dbError instanceof Error ? dbError.message : 'Unknown DB error',
-        timestamp: new Date().toISOString()
-      })
-    }
+    // ⚠️ IMPORTANT: Manual predictions are NOT saved to DB
+    // Only UptimeRobot automation cycles save predictions to maintain clean data
+    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (not saved to DB)`)
     
     return c.json({
       success: true,
@@ -258,19 +232,37 @@ app.get('/api/predictions/ETH', async (c) => {
 
 app.get('/api/predictions/BTC', async (c) => {
   try {
+    // MANUAL prediction generation - Uses existing DB data ONLY, does not modify DB
     const marketResponse = await fetch(`${c.req.url.replace('/predictions/BTC', '/market/BTC')}`)
     const marketData = await marketResponse.json()
     const currentPrice = marketData.price || 94350.75
     
-    // Initialize TimesFM Predictor with D1 database
+    // Check if we have sufficient historical data in DB
+    const historicalCount = await c.env.DB.prepare(`
+      SELECT COUNT(*) as count FROM market_data 
+      WHERE symbol = 'BTCUSDT' 
+      ORDER BY timestamp DESC
+    `).first()
+    
+    if (!historicalCount || historicalCount.count < 100) {
+      return c.json({
+        success: false,
+        error: 'Insufficient historical data for prediction. UptimeRobot cycles must accumulate more data first.',
+        data_points_available: historicalCount?.count || 0,
+        required_minimum: 100,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Create a READ-ONLY predictor instance that won't save to DB
     const predictor = new TimesFMPredictor(c.env.DB)
     
-    // Generate REAL TimesFM prediction using 450+ historical data points
-    const timesfmPrediction = await predictor.predictNextHours('BTC', 24, currentPrice)
+    // Generate prediction using EXISTING data only - NO DB modification
+    const timesfmPrediction = await predictor.predictNextHours('BTC', 24, currentPrice, false)
     
-    // Transform to match frontend expected format
+    // Transform to match frontend expected format (manual prediction - unique ID)
     const prediction = {
-      id: Date.now() + '_BTC',
+      id: `manual_${Date.now()}_BTC_${Math.random().toString(36).substr(2, 3)}`,
       crypto: 'BTC',
       current_price: currentPrice,
       predicted_price: timesfmPrediction.predicted_price,
@@ -301,55 +293,9 @@ app.get('/api/predictions/BTC', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // Store BTC prediction in D1 database for persistence  
-    try {
-      // Create table if it doesn't exist (same schema for BTC)
-      await c.env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS predictions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          prediction_id TEXT UNIQUE NOT NULL,
-          crypto TEXT NOT NULL,
-          current_price REAL NOT NULL,
-          predicted_price REAL NOT NULL,
-          confidence_score REAL NOT NULL,
-          predicted_return REAL NOT NULL,
-          prediction_horizon TEXT NOT NULL DEFAULT '24h',
-          model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
-          quantile_10 REAL,
-          quantile_90 REAL,
-          features_analyzed TEXT,
-          analysis_data TEXT,
-          timestamp TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `).run()
-      
-      // Insert BTC prediction with conflict resolution
-      await c.env.DB.prepare(`
-        INSERT OR REPLACE INTO predictions (
-          prediction_id, crypto, current_price, predicted_price, confidence_score, 
-          predicted_return, prediction_horizon, model_version, 
-          quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        prediction.id, prediction.crypto, prediction.current_price, prediction.predicted_price,
-        prediction.confidence, prediction.predicted_return, prediction.prediction_horizon,
-        prediction.model_version, prediction.quantile_10, prediction.quantile_90,
-        JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
-        prediction.timestamp
-      ).run()
-      
-      console.log(`✅ Successfully stored ${prediction.crypto} prediction with ID: ${prediction.id}`)
-    } catch (dbError) {
-      console.error('❌ Failed to store BTC prediction in D1:', dbError)
-      // Return error in response so frontend can handle it
-      return c.json({
-        success: false,
-        error: 'Failed to store prediction in database',
-        db_error: dbError instanceof Error ? dbError.message : 'Unknown DB error',
-        timestamp: new Date().toISOString()
-      })
-    }
+    // ⚠️ IMPORTANT: Manual predictions are NOT saved to DB
+    // Only UptimeRobot automation cycles save predictions to maintain clean data
+    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (not saved to DB)`)
     
     return c.json({
       success: true,
@@ -1773,28 +1719,35 @@ app.get('/api/automation/hourly', async (c) => {
         coingecko.getEnhancedMarketData('BTC')
       ])
 
-      // NOUVELLE LOGIQUE: Accumulation automatique des nouveaux points
-      const currentTimestamp = new Date().toISOString()
+      // NOUVELLE LOGIQUE: Accumulation automatique des nouveaux points SEULEMENT sur les heures rondes
+      const now = new Date()
+      // Forcer l'heure ronde : 13:00:00.000Z, 14:00:00.000Z, etc.
+      const roundedHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0)
+      const hourlyTimestamp = roundedHour.toISOString()
       
       if (ethData.price_data?.ethereum) {
         const eth = ethData.price_data.ethereum
         
-        // Vérifier si on a déjà un point pour cette heure exacte
+        // Vérifier si on a déjà un point pour cette heure exacte (comparaison directe)
         const existingEth = await c.env.DB.prepare(`
           SELECT COUNT(*) as count FROM market_data 
           WHERE symbol = 'ETHUSDT' 
-          AND datetime(timestamp) = datetime(?)
-        `).bind(currentTimestamp.substring(0, 13) + ':00:00.000Z').first()
+          AND timestamp = ?
+        `).bind(hourlyTimestamp).first()
         
         if (!existingEth || existingEth.count === 0) {
           await c.env.DB.prepare(`
             INSERT INTO market_data (symbol, timestamp, open_price, high_price, low_price, close_price, volume, market_cap)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
-            'ETHUSDT', currentTimestamp, 
+            'ETHUSDT', hourlyTimestamp, 
             eth.usd, eth.usd * 1.001, eth.usd * 0.999, eth.usd, // Realistic OHLC
             eth.usd_24h_vol || 0, eth.usd_market_cap || 0
           ).run()
+          
+          console.log(`✅ ETH data accumulated for hour: ${hourlyTimestamp}`)
+        } else {
+          console.log(`ℹ️ ETH data already exists for hour: ${hourlyTimestamp}`)
         }
         
         results.data_collection.eth = { 
@@ -1807,22 +1760,26 @@ app.get('/api/automation/hourly', async (c) => {
       if (btcData.price_data?.bitcoin) {
         const btc = btcData.price_data.bitcoin
         
-        // Vérifier si on a déjà un point pour cette heure exacte
+        // Vérifier si on a déjà un point pour cette heure exacte (comparaison directe)
         const existingBtc = await c.env.DB.prepare(`
           SELECT COUNT(*) as count FROM market_data 
           WHERE symbol = 'BTCUSDT' 
-          AND datetime(timestamp) = datetime(?)
-        `).bind(currentTimestamp.substring(0, 13) + ':00:00.000Z').first()
+          AND timestamp = ?
+        `).bind(hourlyTimestamp).first()
         
         if (!existingBtc || existingBtc.count === 0) {
           await c.env.DB.prepare(`
             INSERT INTO market_data (symbol, timestamp, open_price, high_price, low_price, close_price, volume, market_cap)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
-            'BTCUSDT', currentTimestamp,
+            'BTCUSDT', hourlyTimestamp,
             btc.usd, btc.usd * 1.001, btc.usd * 0.999, btc.usd, // Realistic OHLC
             btc.usd_24h_vol || 0, btc.usd_market_cap || 0
           ).run()
+          
+          console.log(`✅ BTC data accumulated for hour: ${hourlyTimestamp}`)
+        } else {
+          console.log(`ℹ️ BTC data already exists for hour: ${hourlyTimestamp}`)
         }
         
         results.data_collection.btc = { 
