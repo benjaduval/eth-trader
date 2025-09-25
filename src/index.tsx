@@ -1137,7 +1137,7 @@ app.get('/terminal', (c) => {
                 // Try to get live price from public API
                 try {
                     const coinId = this.currentCrypto === 'ETH' ? 'ethereum' : 'bitcoin';
-                    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+                    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + coinId + '&vs_currencies=usd');
                     const data = await response.json();
                     basePrice = data[coinId]?.usd || (this.currentCrypto === 'ETH' ? 3990 : 95000);
                 } catch (error) {
