@@ -1,5 +1,6 @@
 /**
  * ETH Trader - Complete AI Trading Terminal with CoinGecko Pro API Integration
+ * v6.1.3-PRODUCTION - Force deployment trigger
  */
 
 import { Hono } from 'hono'
