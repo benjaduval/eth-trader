@@ -943,9 +943,14 @@ app.get('/terminal', (c) => {
                         throw new Error('Market data fetch failed');
                     }
                     
-                    // Get prediction data
-                    const predictionResponse = await fetch('/api/predictions/' + this.currentCrypto);
-                    const predictionData = await predictionResponse.json();
+                    // Get EXISTING prediction data (not generate new ones)
+                    const predictionResponse = await fetch('/api/predictions/history');
+                    const predictionHistoryData = await predictionResponse.json();
+                    
+                    // Get the latest prediction for current crypto from history
+                    const latestPrediction = predictionHistoryData.success && predictionHistoryData.predictions 
+                        ? predictionHistoryData.predictions.find(p => p.crypto === this.currentCrypto)
+                        : null;
                     
                     return {
                         current_price: marketData.price,
@@ -962,7 +967,7 @@ app.get('/terminal', (c) => {
                                 pnl: -1.15
                             }
                         ],
-                        latest_predictions: predictionData.success ? [predictionData] : [],
+                        latest_predictions: latestPrediction ? [latestPrediction] : [],
                         market_data: {
                             volume_24h: marketData.volume_24h || (this.currentCrypto === 'ETH' ? 15.8e9 : 28.3e9),
                             market_cap: marketData.market_cap || (this.currentCrypto === 'ETH' ? 556e9 : 1875e9),
