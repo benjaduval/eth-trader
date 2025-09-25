@@ -34,11 +34,11 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1.2-SCHEMA-FIX',
+    version: '6.1.3-PRODUCTION',
     project: 'alice-predictions',
     interface: 'standalone',
     last_commit: '686b49e',
-    deployment_notes: 'Fixed DB schema + instant loading + N/A issues'
+    deployment_notes: 'Fixed DB schema + Real CoinGecko Pro data + UptimeRobot diagnostics + Manual predictions'
   })
 })
 
