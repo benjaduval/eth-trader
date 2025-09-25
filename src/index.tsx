@@ -2720,9 +2720,12 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
     const batchSize = parseInt(c.req.param('hours') || '100') // Process 100 hours by default (respecter 500/min limit)
     
     // Calculate range: 510 hours before current time (for better TimesFM coverage)
+    // Updated for current time: 26 September 2025 00:04
     const now = new Date()
     const hoursBack = 510  // 510 heures pour avoir une marge confortable  
     const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+    
+    console.log(`🕐 Current time: ${now.toISOString()}, Start time: ${startTime.toISOString()}`)
     
     let addedETH = 0
     let addedBTC = 0
