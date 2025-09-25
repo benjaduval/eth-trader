@@ -318,7 +318,7 @@ app.get('/api/predictions/BTC', async (c) => {
 app.get('/api/current-price/:crypto', async (c) => {
   try {
     const crypto = c.req.param('crypto').toUpperCase()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'demo')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
     
     if (crypto === 'ETH') {
       const ethData = await coingecko.getEnhancedMarketData('ETH')
@@ -358,7 +358,7 @@ app.get('/api/current-price/:crypto', async (c) => {
 app.get('/api/crypto/:crypto/current', async (c) => {
   try {
     const crypto = c.req.param('crypto').toUpperCase()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'demo')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
     
     if (crypto === 'ETH') {
       const ethData = await coingecko.getEnhancedMarketData('ETH')
@@ -2666,20 +2666,19 @@ app.get('/api/debug/uptimerobot-analysis', async (c) => {
 app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
   try {
     const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
-    const batchSize = parseInt(c.req.param('hours') || '50') // Process 50 hours by default
+    const batchSize = parseInt(c.req.param('hours') || '100') // Process 100 hours by default (respecter 500/min limit)
     
-    // Calculate range: 450 hours before 18:00 today
+    // Calculate range: 510 hours before current time (for better TimesFM coverage)
     const now = new Date()
-    const target18h = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0)
-    const hoursBack = 450
-    const startTime = new Date(target18h.getTime() - hoursBack * 60 * 60 * 1000)
+    const hoursBack = 510  // 510 heures pour avoir une marge confortable  
+    const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
     
     let addedETH = 0
     let addedBTC = 0
     let apiCalls = 0
     const errors = []
     
-    console.log(`🔍 Batch filling ${batchSize} hours of historical data from ${startTime.toISOString()} to ${target18h.toISOString()}`)
+    console.log(`🔍 Batch filling ${batchSize} hours of historical data from ${startTime.toISOString()} to ${now.toISOString()}`)
     
     // Get missing timestamps for ETH (limited to batch size)
     const missingETH = await c.env.DB.prepare(`
@@ -2696,7 +2695,7 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
       WHERE md.timestamp IS NULL
       ORDER BY hs.hour_timestamp DESC
       LIMIT ?
-    `).bind(startTime.toISOString(), target18h.toISOString(), Math.ceil(batchSize/2)).all()
+    `).bind(startTime.toISOString(), now.toISOString(), Math.ceil(batchSize/2)).all()
     
     // Get missing timestamps for BTC (limited to batch size)
     const missingBTC = await c.env.DB.prepare(`
@@ -2713,7 +2712,7 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
       WHERE md.timestamp IS NULL
       ORDER BY hs.hour_timestamp DESC
       LIMIT ?
-    `).bind(startTime.toISOString(), target18h.toISOString(), Math.ceil(batchSize/2)).all()
+    `).bind(startTime.toISOString(), now.toISOString(), Math.ceil(batchSize/2)).all()
     
     // Process ETH data with REAL CoinGecko Pro API (most recent missing hours first)
     if (missingETH.results) {
