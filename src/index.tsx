@@ -314,6 +314,49 @@ app.get('/api/predictions/BTC', async (c) => {
   }
 })
 
+// Public API endpoints for live prices (fallback to free CoinGecko API)
+app.get('/api/public/price/:crypto', async (c) => {
+  try {
+    const crypto = c.req.param('crypto').toUpperCase()
+    
+    // Use free CoinGecko public API as fallback
+    const coinId = crypto === 'ETH' ? 'ethereum' : crypto === 'BTC' ? 'bitcoin' : null
+    if (!coinId) {
+      return c.json({
+        success: false,
+        error: `Unsupported cryptocurrency: ${crypto}`,
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+    
+    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`)
+    const data = await response.json()
+    
+    if (!data[coinId]) {
+      throw new Error(`Price data not available for ${crypto}`)
+    }
+    
+    const priceData = data[coinId]
+    
+    return c.json({
+      success: true,
+      crypto: crypto,
+      source: 'coingecko-free',
+      price: priceData.usd,
+      price_change_24h: priceData.usd_24h_change || 0,
+      volume_24h: priceData.usd_24h_vol || 0,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error(`Public price fetch error for ${c.req.param('crypto')}:`, error)
+    return c.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Current price endpoints for real-time data
 app.get('/api/current-price/:crypto', async (c) => {
   try {
@@ -981,11 +1024,19 @@ app.get('/terminal', (c) => {
 
             async getMarketData() {
                 try {
-                    const response = await fetch('/api/market/' + this.currentCrypto);
-                    const marketData = await response.json();
+                    // Try public API first for real-time prices, fallback to internal API
+                    let response = await fetch('/api/public/price/' + this.currentCrypto);
+                    let marketData = await response.json();
                     
                     if (!marketData.success) {
-                        throw new Error('Market data fetch failed');
+                        // Fallback to internal API if public fails
+                        console.log('Public API failed, using internal API...');
+                        response = await fetch('/api/market/' + this.currentCrypto);
+                        marketData = await response.json();
+                        
+                        if (!marketData.success) {
+                            throw new Error('Market data fetch failed');
+                        }
                     }
                     
                     // Get EXISTING prediction data (not generate new ones)
