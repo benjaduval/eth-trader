@@ -33,13 +33,16 @@ export class PaperTradingEngine {
 
   async generateSignal(symbol: string = 'ETHUSDT', currentPrice?: number): Promise<TradingSignal> {
     try {
+      // Convert ETHUSDT to ETH format for predictions table
+      const cryptoSymbol = symbol.replace('USDT', '');
+      
       // Récupérer la dernière prédiction depuis la base
       const lastPrediction = await this.db.prepare(`
         SELECT * FROM predictions 
-        WHERE symbol = ? 
-        ORDER BY timestamp DESC 
+        WHERE crypto = ? 
+        ORDER BY created_at DESC 
         LIMIT 1
-      `).bind(symbol).first() as any;
+      `).bind(cryptoSymbol).first() as any;
 
       if (!lastPrediction) {
         throw new Error('No recent prediction available');

@@ -194,7 +194,7 @@ app.get('/api/predictions/ETH', async (c) => {
     
     // Store prediction in D1 database for persistence
     try {
-      // Create table if it doesn't exist
+      // Create table if it doesn't exist (with proper schema)
       await c.env.DB.prepare(`
         CREATE TABLE IF NOT EXISTS predictions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -215,9 +215,9 @@ app.get('/api/predictions/ETH', async (c) => {
         )
       `).run()
       
-      // Insert prediction
+      // Insert prediction with conflict resolution
       await c.env.DB.prepare(`
-        INSERT INTO predictions (
+        INSERT OR REPLACE INTO predictions (
           prediction_id, crypto, current_price, predicted_price, confidence_score, 
           predicted_return, prediction_horizon, model_version, 
           quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
@@ -229,9 +229,17 @@ app.get('/api/predictions/ETH', async (c) => {
         JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
         prediction.timestamp
       ).run()
+      
+      console.log(`✅ Successfully stored ${prediction.crypto} prediction with ID: ${prediction.id}`)
     } catch (dbError) {
-      console.error('Failed to store prediction in D1:', dbError)
-      // Continue without failing the API call
+      console.error('❌ Failed to store prediction in D1:', dbError)
+      // Return error in response so frontend can handle it
+      return c.json({
+        success: false,
+        error: 'Failed to store prediction in database',
+        db_error: dbError instanceof Error ? dbError.message : 'Unknown DB error',
+        timestamp: new Date().toISOString()
+      })
     }
     
     return c.json({
@@ -295,7 +303,7 @@ app.get('/api/predictions/BTC', async (c) => {
     
     // Store BTC prediction in D1 database for persistence  
     try {
-      // Create table if it doesn't exist (same for BTC)
+      // Create table if it doesn't exist (same schema for BTC)
       await c.env.DB.prepare(`
         CREATE TABLE IF NOT EXISTS predictions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -316,9 +324,9 @@ app.get('/api/predictions/BTC', async (c) => {
         )
       `).run()
       
-      // Insert BTC prediction
+      // Insert BTC prediction with conflict resolution
       await c.env.DB.prepare(`
-        INSERT INTO predictions (
+        INSERT OR REPLACE INTO predictions (
           prediction_id, crypto, current_price, predicted_price, confidence_score, 
           predicted_return, prediction_horizon, model_version, 
           quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
@@ -330,9 +338,17 @@ app.get('/api/predictions/BTC', async (c) => {
         JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
         prediction.timestamp
       ).run()
+      
+      console.log(`✅ Successfully stored ${prediction.crypto} prediction with ID: ${prediction.id}`)
     } catch (dbError) {
-      console.error('Failed to store BTC prediction in D1:', dbError)
-      // Continue without failing the API call
+      console.error('❌ Failed to store BTC prediction in D1:', dbError)
+      // Return error in response so frontend can handle it
+      return c.json({
+        success: false,
+        error: 'Failed to store prediction in database',
+        db_error: dbError instanceof Error ? dbError.message : 'Unknown DB error',
+        timestamp: new Date().toISOString()
+      })
     }
     
     return c.json({
@@ -379,7 +395,7 @@ app.get('/api/predictions/history', async (c) => {
              predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
              features_analyzed, analysis_data as analysis, timestamp
       FROM predictions 
-      ORDER BY timestamp DESC 
+      ORDER BY created_at DESC 
       LIMIT 100
     `).all()
     
@@ -1842,37 +1858,57 @@ app.get('/api/automation/hourly', async (c) => {
 
     // 3. Générer signaux de trading (seuils: >59% confiance, >1.2% variation)
     try {
-      const [ethSignal, btcSignal] = await Promise.all([
-        tradingEngine.generateSignal('ETHUSDT', results.data_collection.eth?.price),
-        tradingEngine.generateSignal('BTCUSDT', results.data_collection.btc?.price)
-      ])
-
-      // Appliquer les seuils automatiques: >59% confiance + >1.2% variation
-      const ethValid = ethSignal.confidence > 0.59 && Math.abs(ethSignal.predicted_return || 0) > 0.012
-      const btcValid = btcSignal.confidence > 0.59 && Math.abs(btcSignal.predicted_return || 0) > 0.012
-
-      // Exécuter trades automatiques si seuils respectés
-      if (ethValid && ethSignal.action !== 'hold') {
-        await tradingEngine.executePaperTrade(ethSignal)
-      }
+      // ATTENTION: Ne générer de signaux QUE si on a des prédictions valides
+      let ethSignal = null
+      let btcSignal = null
       
-      if (btcValid && btcSignal.action !== 'hold') {
-        await tradingEngine.executePaperTrade(btcSignal)
-      }
+      // Vérifier qu'on a bien des prédictions générées précédemment
+      if (results.predictions.status === 'completed' && results.predictions.eth && results.predictions.btc) {
+        [ethSignal, btcSignal] = await Promise.all([
+          tradingEngine.generateSignal('ETHUSDT', results.data_collection.eth?.price),
+          tradingEngine.generateSignal('BTCUSDT', results.data_collection.btc?.price)
+        ])
 
-      results.trading_signals = {
-        status: 'completed',
-        eth: {
-          action: ethSignal.action,
-          confidence: ethSignal.confidence,
-          meets_threshold: ethValid,
-          executed: ethValid && ethSignal.action !== 'hold'
-        },
-        btc: {
-          action: btcSignal.action, 
-          confidence: btcSignal.confidence,
-          meets_threshold: btcValid,
-          executed: btcValid && btcSignal.action !== 'hold'
+        // Appliquer les seuils automatiques STRICTS: >59% confiance + >1.2% variation
+        const ethValid = ethSignal && ethSignal.confidence > 0.59 && Math.abs(ethSignal.predicted_return || 0) > 0.012
+        const btcValid = btcSignal && btcSignal.confidence > 0.59 && Math.abs(btcSignal.predicted_return || 0) > 0.012
+
+        // Exécuter trades automatiques SEULEMENT si TOUS les seuils respectés
+        if (ethValid && ethSignal.action !== 'hold') {
+          console.log(`✅ ETH trade conditions met: ${ethSignal.confidence * 100}% confidence, ${(Math.abs(ethSignal.predicted_return || 0) * 100)}% variation`)
+          await tradingEngine.executePaperTrade(ethSignal)
+        } else if (ethSignal) {
+          console.log(`❌ ETH trade rejected: ${ethSignal.confidence * 100}% confidence (need >59%), ${(Math.abs(ethSignal.predicted_return || 0) * 100)}% variation (need >1.2%)`)
+        }
+        
+        if (btcValid && btcSignal.action !== 'hold') {
+          console.log(`✅ BTC trade conditions met: ${btcSignal.confidence * 100}% confidence, ${(Math.abs(btcSignal.predicted_return || 0) * 100)}% variation`)
+          await tradingEngine.executePaperTrade(btcSignal)
+        } else if (btcSignal) {
+          console.log(`❌ BTC trade rejected: ${btcSignal.confidence * 100}% confidence (need >59%), ${(Math.abs(btcSignal.predicted_return || 0) * 100)}% variation (need >1.2%)`)
+        }
+
+        results.trading_signals = {
+          status: 'completed',
+          eth: ethSignal ? {
+            action: ethSignal.action,
+            confidence: ethSignal.confidence,
+            meets_threshold: ethValid || false,
+            executed: ethValid && ethSignal.action !== 'hold'
+          } : { action: 'hold', confidence: 0, meets_threshold: false, executed: false },
+          btc: btcSignal ? {
+            action: btcSignal.action, 
+            confidence: btcSignal.confidence,
+            meets_threshold: btcValid || false,
+            executed: btcValid && btcSignal.action !== 'hold'
+          } : { action: 'hold', confidence: 0, meets_threshold: false, executed: false }
+        }
+      } else {
+        console.log('❌ No valid predictions available - skipping trade signal generation')
+        results.trading_signals = {
+          status: 'skipped',
+          eth: { action: 'hold', confidence: 0, meets_threshold: false, executed: false, reason: 'no_predictions' },
+          btc: { action: 'hold', confidence: 0, meets_threshold: false, executed: false, reason: 'no_predictions' }
         }
       }
     } catch (error) {
@@ -1969,6 +2005,141 @@ app.get('/api/trading/check-positions', async (c) => {
 // ===========================
 // DATABASE INITIALIZATION ENDPOINTS
 // ===========================
+
+// Clean up phantom data and reset database to proper state
+app.get('/api/db/cleanup-and-reset', async (c) => {
+  try {
+    const results = {
+      predictions_cleaned: 0,
+      trades_cleaned: 0,
+      tables_recreated: false,
+      errors: [] as string[]
+    }
+
+    // 1. Clean up all phantom data
+    try {
+      // Count existing records before cleanup
+      const predictionsCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM predictions').first()
+      const tradesCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM paper_trades').first()
+      
+      results.predictions_cleaned = predictionsCount?.count || 0
+      results.trades_cleaned = tradesCount?.count || 0
+
+      // Delete all phantom data
+      await c.env.DB.prepare('DELETE FROM predictions').run()
+      await c.env.DB.prepare('DELETE FROM paper_trades').run()
+      await c.env.DB.prepare('DELETE FROM trading_signals').run()
+      await c.env.DB.prepare('DELETE FROM market_data').run()
+
+      console.log(`Cleaned ${results.predictions_cleaned} predictions and ${results.trades_cleaned} trades`)
+      
+    } catch (error) {
+      results.errors.push(`Cleanup failed: ${error.message}`)
+    }
+
+    // 2. Recreate tables with proper schema
+    try {
+      // Drop existing tables to ensure clean state
+      await c.env.DB.prepare('DROP TABLE IF EXISTS predictions').run()
+      await c.env.DB.prepare('DROP TABLE IF EXISTS paper_trades').run()
+      await c.env.DB.prepare('DROP TABLE IF EXISTS trading_signals').run()
+      await c.env.DB.prepare('DROP TABLE IF EXISTS market_data').run()
+
+      // Recreate market_data table
+      await c.env.DB.prepare(`
+        CREATE TABLE market_data (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          symbol TEXT NOT NULL,
+          timestamp TEXT NOT NULL,
+          open_price REAL NOT NULL,
+          high_price REAL NOT NULL,
+          low_price REAL NOT NULL,
+          close_price REAL NOT NULL,
+          volume REAL DEFAULT 0,
+          market_cap REAL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run()
+
+      // Recreate predictions table with correct schema
+      await c.env.DB.prepare(`
+        CREATE TABLE predictions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          prediction_id TEXT UNIQUE NOT NULL,
+          crypto TEXT NOT NULL,
+          current_price REAL NOT NULL,
+          predicted_price REAL NOT NULL,
+          confidence_score REAL NOT NULL,
+          predicted_return REAL NOT NULL,
+          prediction_horizon TEXT NOT NULL DEFAULT '24h',
+          model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
+          quantile_10 REAL,
+          quantile_90 REAL,
+          features_analyzed TEXT,
+          analysis_data TEXT,
+          timestamp TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run()
+
+      // Recreate paper_trades table
+      await c.env.DB.prepare(`
+        CREATE TABLE paper_trades (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          trade_id TEXT UNIQUE NOT NULL,
+          symbol TEXT NOT NULL,
+          action TEXT NOT NULL,
+          quantity REAL NOT NULL,
+          entry_price REAL NOT NULL,
+          exit_price REAL,
+          stop_loss REAL,
+          take_profit REAL,
+          status TEXT DEFAULT 'open',
+          pnl REAL DEFAULT 0,
+          confidence_score REAL,
+          predicted_return REAL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          closed_at DATETIME
+        )
+      `).run()
+
+      // Recreate trading_signals table
+      await c.env.DB.prepare(`
+        CREATE TABLE trading_signals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          symbol TEXT NOT NULL,
+          action TEXT NOT NULL,
+          confidence REAL NOT NULL,
+          predicted_return REAL,
+          current_price REAL NOT NULL,
+          prediction_data TEXT,
+          executed BOOLEAN DEFAULT FALSE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run()
+
+      results.tables_recreated = true
+      console.log('All tables recreated successfully with proper schema')
+      
+    } catch (error) {
+      results.errors.push(`Table recreation failed: ${error.message}`)
+    }
+
+    return c.json({
+      success: results.errors.length === 0,
+      message: 'Database cleaned and reset successfully',
+      ...results,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Database cleanup failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
 
 // Endpoint pour nettoyer et remplir la DB avec 450 points historiques
 app.get('/api/db/initialize-historical-data', async (c) => {
