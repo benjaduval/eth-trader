@@ -79,14 +79,30 @@ app.get('/api/market/ETH', async (c) => {
       })
     }
     
-    // Fallback si pas de données
+    // Fallback avec prix public API en cas d'échec CoinGecko Pro
+    try {
+      const publicResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+      const publicData = await publicResponse.json()
+      if (publicData.ethereum?.usd) {
+        return c.json({
+          success: true,
+          crypto: 'ETH',
+          price: publicData.ethereum.usd,
+          timestamp: new Date().toISOString(),
+          status: 'active',
+          source: 'fallback-public'
+        })
+      }
+    } catch (fallbackError) {
+      console.error('Public API fallback failed:', fallbackError)
+    }
+    
+    // Dernier recours si tout échoue
     return c.json({
-      success: true,
-      crypto: 'ETH',
-      price: 4620.50,
-      timestamp: new Date().toISOString(),
-      status: 'active'
-    })
+      success: false,
+      error: 'Unable to fetch ETH price from any source',
+      timestamp: new Date().toISOString()
+    }, 500)
   } catch (error) {
     return c.json({
       success: false,
@@ -131,13 +147,30 @@ app.get('/api/market/BTC', async (c) => {
       })
     }
     
-    // Fallback si pas de données
+    // Fallback avec prix public API en cas d'échec CoinGecko Pro
+    try {
+      const publicResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+      const publicData = await publicResponse.json()
+      if (publicData.bitcoin?.usd) {
+        return c.json({
+          success: true,
+          crypto: 'BTC',
+          price: publicData.bitcoin.usd,
+          timestamp: new Date().toISOString(),
+          status: 'active',
+          source: 'fallback-public'
+        })
+      }
+    } catch (fallbackError) {
+      console.error('Public API fallback failed:', fallbackError)
+    }
+
+    // Fallback final si toutes les APIs échouent
     return c.json({
-      success: true,
-      crypto: 'BTC',
-      price: 94350.75,
+      success: false,
+      error: 'All market data sources unavailable',
       timestamp: new Date().toISOString(),
-      status: 'active'
+      status: 'error'
     })
   } catch (error) {
     return c.json({
@@ -157,7 +190,18 @@ app.get('/api/predictions/ETH', async (c) => {
     // Get current market data first (read-only)
     const marketResponse = await fetch(`${c.req.url.replace('/predictions/ETH', '/market/ETH')}`)
     const marketData = await marketResponse.json()
-    const currentPrice = marketData.price || 4620.50
+    
+    // Use live price from market API, fallback to public API if needed
+    let currentPrice = marketData.price
+    if (!currentPrice || !marketData.success) {
+      try {
+        const publicResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+        const publicData = await publicResponse.json()
+        currentPrice = publicData.ethereum?.usd || 3990 // Final fallback
+      } catch {
+        currentPrice = 3990 // Final fallback if all APIs fail
+      }
+    }
     
     // Check if we have sufficient historical data in DB
     const historicalCount = await c.env.DB.prepare(`
@@ -238,7 +282,18 @@ app.get('/api/predictions/BTC', async (c) => {
     // MANUAL prediction generation - Uses existing DB data ONLY, does not modify DB
     const marketResponse = await fetch(`${c.req.url.replace('/predictions/BTC', '/market/BTC')}`)
     const marketData = await marketResponse.json()
-    const currentPrice = marketData.price || 94350.75
+    
+    // Use live price from market API, fallback to public API if needed
+    let currentPrice = marketData.price
+    if (!currentPrice || !marketData.success) {
+      try {
+        const publicResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        const publicData = await publicResponse.json()
+        currentPrice = publicData.bitcoin?.usd || 95000 // Final fallback
+      } catch {
+        currentPrice = 95000 // Final fallback if all APIs fail
+      }
+    }
     
     // Check if we have sufficient historical data in DB
     const historicalCount = await c.env.DB.prepare(`
@@ -1072,12 +1127,23 @@ app.get('/terminal', (c) => {
                     };
                 } catch (error) {
                     console.error('Failed to fetch real market data, using fallback:', error);
-                    return this.getDemoData();
+                    return await this.getDemoData();
                 }
             }
 
-            getDemoData() {
-                const basePrice = this.currentCrypto === 'ETH' ? 4620.50 : 94350.75;
+            async getDemoData() {
+                let basePrice;
+                
+                // Try to get live price from public API
+                try {
+                    const coinId = this.currentCrypto === 'ETH' ? 'ethereum' : 'bitcoin';
+                    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+                    const data = await response.json();
+                    basePrice = data[coinId]?.usd || (this.currentCrypto === 'ETH' ? 3990 : 95000);
+                } catch (error) {
+                    console.error('Failed to fetch live price for demo data:', error);
+                    basePrice = this.currentCrypto === 'ETH' ? 3990 : 95000; // Updated fallback prices
+                }
                 
                 return {
                     current_price: basePrice,
@@ -2057,8 +2123,30 @@ app.get('/api/trading/check-positions', async (c) => {
       coingecko.getEnhancedMarketData('BTC')
     ])
 
-    const ethPrice = ethData.price_data?.ethereum?.usd || 3990
-    const btcPrice = btcData.price_data?.bitcoin?.usd || 110500
+    // Get live prices with proper fallback to public API
+    let ethPrice = ethData.price_data?.ethereum?.usd
+    let btcPrice = btcData.price_data?.bitcoin?.usd
+    
+    // If CoinGecko Pro failed, try public API
+    if (!ethPrice) {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+        const data = await response.json()
+        ethPrice = data.ethereum?.usd || 3990
+      } catch {
+        ethPrice = 3990 // Final fallback
+      }
+    }
+    
+    if (!btcPrice) {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        const data = await response.json()
+        btcPrice = data.bitcoin?.usd || 95000
+      } catch {
+        btcPrice = 95000 // Final fallback
+      }
+    }
 
     const results = {
       monitoring_cycle: '5min_positions',
