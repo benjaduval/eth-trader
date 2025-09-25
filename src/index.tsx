@@ -194,6 +194,28 @@ app.get('/api/predictions/ETH', async (c) => {
     
     // Store prediction in D1 database for persistence
     try {
+      // Create table if it doesn't exist
+      await c.env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS predictions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          prediction_id TEXT UNIQUE NOT NULL,
+          crypto TEXT NOT NULL,
+          current_price REAL NOT NULL,
+          predicted_price REAL NOT NULL,
+          confidence_score REAL NOT NULL,
+          predicted_return REAL NOT NULL,
+          prediction_horizon TEXT NOT NULL DEFAULT '24h',
+          model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
+          quantile_10 REAL,
+          quantile_90 REAL,
+          features_analyzed TEXT,
+          analysis_data TEXT,
+          timestamp TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run()
+      
+      // Insert prediction
       await c.env.DB.prepare(`
         INSERT INTO predictions (
           prediction_id, crypto, current_price, predicted_price, confidence_score, 
@@ -271,8 +293,30 @@ app.get('/api/predictions/BTC', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // Store BTC prediction in D1 database for persistence
+    // Store BTC prediction in D1 database for persistence  
     try {
+      // Create table if it doesn't exist (same for BTC)
+      await c.env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS predictions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          prediction_id TEXT UNIQUE NOT NULL,
+          crypto TEXT NOT NULL,
+          current_price REAL NOT NULL,
+          predicted_price REAL NOT NULL,
+          confidence_score REAL NOT NULL,
+          predicted_return REAL NOT NULL,
+          prediction_horizon TEXT NOT NULL DEFAULT '24h',
+          model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
+          quantile_10 REAL,
+          quantile_90 REAL,
+          features_analyzed TEXT,
+          analysis_data TEXT,
+          timestamp TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run()
+      
+      // Insert BTC prediction
       await c.env.DB.prepare(`
         INSERT INTO predictions (
           prediction_id, crypto, current_price, predicted_price, confidence_score, 
