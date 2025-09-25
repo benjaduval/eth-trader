@@ -352,6 +352,27 @@ app.get('/api/predictions/BTC', async (c) => {
 // New endpoints for predictions and trade history - Using D1 database
 app.get('/api/predictions/history', async (c) => {
   try {
+    // First ensure table exists
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prediction_id TEXT UNIQUE NOT NULL,
+        crypto TEXT NOT NULL,
+        current_price REAL NOT NULL,
+        predicted_price REAL NOT NULL,
+        confidence_score REAL NOT NULL,
+        predicted_return REAL NOT NULL,
+        prediction_horizon TEXT NOT NULL DEFAULT '24h',
+        model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
+        quantile_10 REAL,
+        quantile_90 REAL,
+        features_analyzed TEXT,
+        analysis_data TEXT,
+        timestamp TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run()
+    
     // Fetch predictions from D1 database, ordered by timestamp DESC
     const result = await c.env.DB.prepare(`
       SELECT prediction_id as id, crypto, current_price, predicted_price, confidence_score as confidence,
@@ -362,11 +383,11 @@ app.get('/api/predictions/history', async (c) => {
       LIMIT 100
     `).all()
     
-    const predictions = result.results.map(row => ({
+    const predictions = result.results ? result.results.map(row => ({
       ...row,
       features_analyzed: row.features_analyzed ? JSON.parse(row.features_analyzed) : [],
       analysis: row.analysis ? JSON.parse(row.analysis) : {}
-    }))
+    })) : []
     
     return c.json({
       success: true,
@@ -380,7 +401,7 @@ app.get('/api/predictions/history', async (c) => {
       success: false,
       predictions: [],
       total_count: 0,
-      error: 'Failed to fetch predictions history',
+      error: `Failed to fetch predictions history: ${error.message}`,
       timestamp: new Date().toISOString()
     })
   }
