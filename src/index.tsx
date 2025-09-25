@@ -34,9 +34,11 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.0.0-STANDALONE-REDIRECT',
-    project: 'eth-trader-v2',
-    interface: 'standalone'
+    version: '6.1.2-SCHEMA-FIX',
+    project: 'alice-predictions',
+    interface: 'standalone',
+    last_commit: '686b49e',
+    deployment_notes: 'Fixed DB schema + instant loading + N/A issues'
   })
 })
 
@@ -782,7 +784,7 @@ app.get('/terminal', (c) => {
                             <h1 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
                                 Alice Predictions
                             </h1>
-                            <p class="text-purple-300 text-sm">TimesFM AI Trading System</p>
+                            <p class="text-purple-300 text-sm">TimesFM AI Trading System • <span class="text-blue-400 font-mono">v6.1.2</span></p>
                         </div>
                     </div>
                     
@@ -866,20 +868,27 @@ app.get('/terminal', (c) => {
                     console.log('📡 Chargement des données réelles en arrière-plan...');
                     
                     // Charger en parallèle sans bloquer l'UI
-                    const [dashboardData, , ] = await Promise.allSettled([
+                    const [dashboardDataResult, predictionsResult, tradesResult] = await Promise.allSettled([
                         this.getMarketData(),
                         this.loadPredictionsHistory(),
                         this.loadTradesHistory()
                     ]);
                     
-                    // Mettre à jour seulement si on a de vraies données
-                    if (dashboardData.status === 'fulfilled') {
-                        this.renderTerminal(dashboardData.value);
-                        console.log('✅ Données réelles chargées');
+                    // IMPORTANT: Ne mettre à jour QUE si on a des données valides
+                    if (dashboardDataResult.status === 'fulfilled' && 
+                        dashboardDataResult.value.latest_predictions.length > 0) {
+                        
+                        this.renderTerminal(dashboardDataResult.value);
+                        console.log('✅ Données réelles chargées et affichées');
+                        
+                    } else {
+                        console.log('ℹ️ Keeping demo data - API returned empty/invalid predictions');
+                        console.log('Prediction status:', dashboardDataResult.status);
+                        console.log('Predictions count:', dashboardDataResult.value?.latest_predictions?.length || 0);
                     }
                     
                 } catch (error) {
-                    console.log('ℹ️ Continuing with demo data, real data unavailable');
+                    console.log('ℹ️ Continuing with demo data, real data unavailable:', error.message);
                 }
             }
 
