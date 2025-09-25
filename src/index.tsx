@@ -16,9 +16,8 @@ type Env = {
 
 const app = new Hono<Env>()
 
-// In-memory storage for predictions and trades (in production, use a proper database)
-let predictionsHistory: any[] = []
-let tradesHistory: any[] = []
+// Database storage for predictions and trades using Cloudflare D1
+// Removed in-memory volatile storage - now using persistent D1 database
 
 // CORS middleware
 app.use('/api/*', cors({
@@ -193,10 +192,24 @@ app.get('/api/predictions/ETH', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // Store in history
-    predictionsHistory.unshift(prediction)
-    if (predictionsHistory.length > 100) {
-      predictionsHistory = predictionsHistory.slice(0, 100)
+    // Store prediction in D1 database for persistence
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO predictions (
+          prediction_id, crypto, current_price, predicted_price, confidence_score, 
+          predicted_return, prediction_horizon, model_version, 
+          quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        prediction.id, prediction.crypto, prediction.current_price, prediction.predicted_price,
+        prediction.confidence, prediction.predicted_return, prediction.prediction_horizon,
+        prediction.model_version, prediction.quantile_10, prediction.quantile_90,
+        JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
+        prediction.timestamp
+      ).run()
+    } catch (dbError) {
+      console.error('Failed to store prediction in D1:', dbError)
+      // Continue without failing the API call
     }
     
     return c.json({
@@ -258,9 +271,24 @@ app.get('/api/predictions/BTC', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    predictionsHistory.unshift(prediction)
-    if (predictionsHistory.length > 100) {
-      predictionsHistory = predictionsHistory.slice(0, 100)
+    // Store BTC prediction in D1 database for persistence
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO predictions (
+          prediction_id, crypto, current_price, predicted_price, confidence_score, 
+          predicted_return, prediction_horizon, model_version, 
+          quantile_10, quantile_90, features_analyzed, analysis_data, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        prediction.id, prediction.crypto, prediction.current_price, prediction.predicted_price,
+        prediction.confidence, prediction.predicted_return, prediction.prediction_horizon,
+        prediction.model_version, prediction.quantile_10, prediction.quantile_90,
+        JSON.stringify(prediction.features_analyzed), JSON.stringify(prediction.analysis),
+        prediction.timestamp
+      ).run()
+    } catch (dbError) {
+      console.error('Failed to store BTC prediction in D1:', dbError)
+      // Continue without failing the API call
     }
     
     return c.json({
@@ -277,23 +305,79 @@ app.get('/api/predictions/BTC', async (c) => {
   }
 })
 
-// New endpoints for predictions and trade history
-app.get('/api/predictions/history', (c) => {
-  return c.json({
-    success: true,
-    predictions: predictionsHistory,
-    total_count: predictionsHistory.length,
-    timestamp: new Date().toISOString()
-  })
+// New endpoints for predictions and trade history - Using D1 database
+app.get('/api/predictions/history', async (c) => {
+  try {
+    // Fetch predictions from D1 database, ordered by timestamp DESC
+    const result = await c.env.DB.prepare(`
+      SELECT prediction_id as id, crypto, current_price, predicted_price, confidence_score as confidence,
+             predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
+             features_analyzed, analysis_data as analysis, timestamp
+      FROM predictions 
+      ORDER BY timestamp DESC 
+      LIMIT 100
+    `).all()
+    
+    const predictions = result.results.map(row => ({
+      ...row,
+      features_analyzed: row.features_analyzed ? JSON.parse(row.features_analyzed) : [],
+      analysis: row.analysis ? JSON.parse(row.analysis) : {}
+    }))
+    
+    return c.json({
+      success: true,
+      predictions: predictions,
+      total_count: predictions.length,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Failed to fetch predictions history:', error)
+    return c.json({
+      success: false,
+      predictions: [],
+      total_count: 0,
+      error: 'Failed to fetch predictions history',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
-app.get('/api/trades/history', (c) => {
-  return c.json({
-    success: true,
-    trades: tradesHistory,
-    total_count: tradesHistory.length,
-    timestamp: new Date().toISOString()
-  })
+app.get('/api/trades/history', async (c) => {
+  try {
+    // Fetch trades from D1 database, ordered by timestamp DESC
+    const result = await c.env.DB.prepare(`
+      SELECT * FROM paper_trades 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `).all()
+    
+    const trades = result.results.map(row => ({
+      id: row.trade_id,
+      crypto: row.symbol.replace('USDT', ''), // Convert ETHUSDT -> ETH
+      action: row.action,
+      amount: row.quantity,
+      price: row.entry_price,
+      total: row.quantity * row.entry_price,
+      status: row.status,
+      timestamp: row.created_at
+    }))
+    
+    return c.json({
+      success: true,
+      trades: trades,
+      total_count: trades.length,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Failed to fetch trades history:', error)
+    return c.json({
+      success: false,
+      trades: [],
+      total_count: 0,
+      error: 'Failed to fetch trades history',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
 // Execute trade endpoint
@@ -313,9 +397,19 @@ app.post('/api/trades/execute', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    tradesHistory.unshift(trade)
-    if (tradesHistory.length > 50) {
-      tradesHistory = tradesHistory.slice(0, 50)
+    // Store trade in D1 database for persistence
+    try {
+      const symbol = crypto + 'USDT'
+      await c.env.DB.prepare(`
+        INSERT INTO paper_trades (
+          trade_id, symbol, action, quantity, entry_price, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        trade.id, symbol, trade.action, trade.amount, trade.price, trade.status, trade.timestamp
+      ).run()
+    } catch (dbError) {
+      console.error('Failed to store trade in D1:', dbError)
+      // Continue without failing the API call
     }
     
     return c.json({
@@ -839,7 +933,13 @@ app.get('/terminal', (c) => {
                 try {
                     const response = await fetch('/api/predictions/history');
                     const data = await response.json();
-                    this.predictionsHistory = data.success ? data.predictions : [];
+                    if (data.success && data.predictions) {
+                        this.predictionsHistory = data.predictions;
+                        console.log(\`Loaded \${data.predictions.length} predictions from D1 database\`);
+                    } else {
+                        console.error('No predictions data received:', data);
+                        this.predictionsHistory = [];
+                    }
                 } catch (error) {
                     console.error('Failed to load predictions history:', error);
                     this.predictionsHistory = [];
@@ -850,7 +950,13 @@ app.get('/terminal', (c) => {
                 try {
                     const response = await fetch('/api/trades/history');
                     const data = await response.json();
-                    this.tradesHistory = data.success ? data.trades : [];
+                    if (data.success && data.trades) {
+                        this.tradesHistory = data.trades;
+                        console.log(\`Loaded \${data.trades.length} trades from D1 database\`);
+                    } else {
+                        console.error('No trades data received:', data);
+                        this.tradesHistory = [];
+                    }
                 } catch (error) {
                     console.error('Failed to load trades history:', error);
                     this.tradesHistory = [];
