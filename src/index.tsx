@@ -35,18 +35,18 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1.3-PRODUCTION',
+    version: '6.1.4-PRODUCTION',
     project: 'alice-predictions',
     interface: 'standalone',
-    last_commit: '686b49e',
-    deployment_notes: 'Fixed DB schema + Real CoinGecko Pro data + UptimeRobot diagnostics + Manual predictions'
+    last_commit: 'live-prices-fix',
+    deployment_notes: 'Fixed N/A price display + Robust API fallbacks + Direct CoinGecko integration'
   })
 })
 
 // UptimeRobot compatible endpoints - Avec vraies données CoinGecko Pro
 app.get('/api/market/ETH', async (c) => {
   try {
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     const ethData = await coingecko.getEnhancedMarketData('ETH')
     
     if (ethData.price_data?.ethereum) {
@@ -114,7 +114,7 @@ app.get('/api/market/ETH', async (c) => {
 
 app.get('/api/market/BTC', async (c) => {
   try {
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     const btcData = await coingecko.getEnhancedMarketData('BTC')
     
     if (btcData.price_data?.bitcoin) {
@@ -416,7 +416,7 @@ app.get('/api/public/price/:crypto', async (c) => {
 app.get('/api/current-price/:crypto', async (c) => {
   try {
     const crypto = c.req.param('crypto').toUpperCase()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     
     if (crypto === 'ETH') {
       const ethData = await coingecko.getEnhancedMarketData('ETH')
@@ -456,7 +456,7 @@ app.get('/api/current-price/:crypto', async (c) => {
 app.get('/api/crypto/:crypto/current', async (c) => {
   try {
     const crypto = c.req.param('crypto').toUpperCase()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     
     if (crypto === 'ETH') {
       const ethData = await coingecko.getEnhancedMarketData('ETH')
@@ -1059,17 +1059,19 @@ app.get('/terminal', (c) => {
                         this.loadTradesHistory()
                     ]);
                     
-                    // IMPORTANT: Ne mettre à jour QUE si on a des données valides
+                    // IMPORTANT: Toujours mettre à jour avec les données de marché valides
                     if (dashboardDataResult.status === 'fulfilled' && 
-                        dashboardDataResult.value.latest_predictions.length > 0) {
+                        dashboardDataResult.value.current_price && 
+                        dashboardDataResult.value.current_price > 0) {
                         
                         this.renderTerminal(dashboardDataResult.value);
                         console.log('✅ Données réelles chargées et affichées');
+                        console.log('Prix actuel:', dashboardDataResult.value.current_price);
                         
                     } else {
-                        console.log('ℹ️ Keeping demo data - API returned empty/invalid predictions');
-                        console.log('Prediction status:', dashboardDataResult.status);
-                        console.log('Predictions count:', dashboardDataResult.value?.latest_predictions?.length || 0);
+                        console.log('ℹ️ Keeping demo data - Market price not available');
+                        console.log('Market data status:', dashboardDataResult.status);
+                        console.log('Current price:', dashboardDataResult.value?.current_price || 'N/A');
                     }
                     
                 } catch (error) {
@@ -1079,18 +1081,50 @@ app.get('/terminal', (c) => {
 
             async getMarketData() {
                 try {
-                    // Try public API first for real-time prices, fallback to internal API
-                    let response = await fetch('/api/public/price/' + this.currentCrypto);
-                    let marketData = await response.json();
+                    let marketData = null;
                     
-                    if (!marketData.success) {
-                        // Fallback to internal API if public fails
-                        console.log('Public API failed, using internal API...');
-                        response = await fetch('/api/market/' + this.currentCrypto);
+                    // Essayer d'abord l'API interne (plus complète)
+                    try {
+                        let response = await fetch('/api/market/' + this.currentCrypto);
                         marketData = await response.json();
                         
-                        if (!marketData.success) {
-                            throw new Error('Market data fetch failed');
+                        if (marketData.success && marketData.price > 0) {
+                            console.log('✅ Données obtenues via API interne:', marketData.price);
+                        } else {
+                            throw new Error('API interne retourne des données invalides');
+                        }
+                    } catch (error) {
+                        console.log('🔄 API interne échouée, essai API publique...');
+                        
+                        // Fallback vers API publique
+                        try {
+                            let response = await fetch('/api/public/price/' + this.currentCrypto);
+                            marketData = await response.json();
+                            
+                            if (!marketData.success || !marketData.price) {
+                                throw new Error('API publique aussi échoue');
+                            }
+                            console.log('✅ Données obtenues via API publique:', marketData.price);
+                        } catch (publicError) {
+                            console.log('🔄 Toutes les APIs ont échoué, tentative directe CoinGecko...');
+                            
+                            // Dernier recours : API CoinGecko directe
+                            const coinId = this.currentCrypto === 'ETH' ? 'ethereum' : 'bitcoin';
+                            const directResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + coinId + '&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true');
+                            const directData = await directResponse.json();
+                            
+                            if (directData[coinId] && directData[coinId].usd) {
+                                marketData = {
+                                    success: true,
+                                    price: directData[coinId].usd,
+                                    price_change_24h: directData[coinId].usd_24h_change || 0,
+                                    volume_24h: directData[coinId].usd_24h_vol || 0,
+                                    source: 'coingecko-direct'
+                                };
+                                console.log('✅ Données obtenues via CoinGecko direct:', marketData.price);
+                            } else {
+                                throw new Error('Toutes les sources de prix ont échoué');
+                            }
                         }
                     }
                     
@@ -1915,7 +1949,7 @@ app.get('/terminal', (c) => {
 app.get('/api/automation/hourly', async (c) => {
   try {
     const startTime = Date.now()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     const predictor = new TimesFMPredictor(c.env.DB)
     const tradingEngine = new PaperTradingEngine(c.env.DB, c.env)
 
@@ -2117,7 +2151,7 @@ app.get('/api/trading/check-positions', async (c) => {
     const predictor = new TimesFMPredictor(c.env.DB)
     
     // Récupérer prix actuels
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     const [ethData, btcData] = await Promise.all([
       coingecko.getEnhancedMarketData('ETH'),
       coingecko.getEnhancedMarketData('BTC')
@@ -2345,7 +2379,7 @@ app.get('/api/db/cleanup-and-reset', async (c) => {
 app.get('/api/db/initialize-historical-data', async (c) => {
   try {
     const startTime = Date.now()
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     
     // 1. Nettoyer les données existantes
     console.log('Cleaning existing market_data...')
@@ -2486,7 +2520,7 @@ app.get('/api/debug/create-new-predictions-table', async (c) => {
 // Fill missing historical data for TimesFM using REAL CoinGecko Pro API
 app.get('/api/debug/fill-missing-data', async (c) => {
   try {
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     
     // Calculate range: 450 hours before 18:00 today
     const now = new Date()
@@ -2804,7 +2838,7 @@ app.get('/api/debug/uptimerobot-analysis', async (c) => {
 // Fill missing data in batches (safer for API limits)
 app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
   try {
-    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-bsLZ4jVKKU72L2Jmn2jSgioV')
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
     const batchSize = parseInt(c.req.param('hours') || '100') // Process 100 hours by default (respecter 500/min limit)
     
     // Calculate range: 510 hours before current time (for better TimesFM coverage)
