@@ -2649,7 +2649,7 @@ app.get('/api/debug/fill-missing-data', async (c) => {
             const btc = btcData.price_data.bitcoin
             
             // Use current price as base with realistic historical variation
-            const hoursAgo = Math.floor((target18h.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
+            const hoursAgo = Math.floor((now.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
             const priceVariation = Math.sin(hoursAgo * 0.015) * 0.04 + Math.random() * 0.015 - 0.0075 // ±0.75-4.75% variation
             const historicalPrice = btc.usd * (1 + priceVariation)
             
@@ -2695,7 +2695,7 @@ app.get('/api/debug/fill-missing-data', async (c) => {
       },
       range: {
         start: startTime.toISOString(),
-        end: target18h.toISOString(),
+        end: now.toISOString(),
         hours_processed: hoursBack
       },
       errors: errors.slice(0, 15), // Show first 15 errors
@@ -2902,7 +2902,7 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
             const eth = ethData.price_data.ethereum
             
             // Use current price as base with realistic historical variation
-            const hoursAgo = Math.floor((target18h.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
+            const hoursAgo = Math.floor((now.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
             const priceVariation = Math.sin(hoursAgo * 0.02) * 0.05 + Math.random() * 0.02 - 0.01 // ±1-6% variation
             const historicalPrice = eth.usd * (1 + priceVariation)
             
@@ -2943,7 +2943,7 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
             const btc = btcData.price_data.bitcoin
             
             // Use current price as base with realistic historical variation
-            const hoursAgo = Math.floor((target18h.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
+            const hoursAgo = Math.floor((now.getTime() - new Date(missing.hour_timestamp).getTime()) / (60 * 60 * 1000))
             const priceVariation = Math.sin(hoursAgo * 0.015) * 0.04 + Math.random() * 0.015 - 0.0075 // ±0.75-4.75% variation
             const historicalPrice = btc.usd * (1 + priceVariation)
             
@@ -2989,7 +2989,7 @@ app.get('/api/debug/fill-missing-data-batch/:hours?', async (c) => {
       },
       range: {
         start: startTime.toISOString(),
-        end: target18h.toISOString()
+        end: now.toISOString()
       },
       errors: errors.slice(0, 10),
       timestamp: new Date().toISOString()
@@ -3080,9 +3080,9 @@ app.get('/api/debug/timesfm-data-coverage', async (c) => {
   try {
     // Calculate target: 450 hours before 18:00 today (2025-09-25)
     const now = new Date()
-    const target18h = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0)
+    const now = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0)
     const hoursBack = 450
-    const startTime = new Date(target18h.getTime() - hoursBack * 60 * 60 * 1000)
+    const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
     
     // Check ETH data coverage
     const ethCoverage = await c.env.DB.prepare(`
@@ -3129,9 +3129,9 @@ app.get('/api/debug/timesfm-data-coverage', async (c) => {
       success: true,
       timesfm_requirement: {
         required_hours: hoursBack,
-        target_end_time: target18h.toISOString(),
+        target_end_time: now.toISOString(),
         range_start: startTime.toISOString(),
-        range_end: target18h.toISOString()
+        range_end: now.toISOString()
       },
       eth_coverage: {
         total_hours_in_db: ethCoverage?.total_hours || 0,
