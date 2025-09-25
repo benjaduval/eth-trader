@@ -345,7 +345,7 @@ export class TimesFMPredictor {
       const currentPrice = prediction.predicted_price / (1 + prediction.predicted_return)
       
       await this.db.prepare(`
-        INSERT OR REPLACE INTO predictions 
+        INSERT OR REPLACE INTO ai_predictions 
         (prediction_id, crypto, current_price, predicted_price, confidence_score, 
          predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
          features_analyzed, analysis_data, timestamp)

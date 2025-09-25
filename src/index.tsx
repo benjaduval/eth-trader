@@ -178,8 +178,8 @@ app.get('/api/predictions/ETH', async (c) => {
     // Create a READ-ONLY predictor instance that won't save to DB
     const predictor = new TimesFMPredictor(c.env.DB)
     
-    // Generate prediction using EXISTING data only - NO DB modification
-    const timesfmPrediction = await predictor.predictNextHours('ETH', 24, currentPrice, false)
+    // Generate prediction using EXISTING data only - SAVE to DB for history
+    const timesfmPrediction = await predictor.predictNextHours('ETH', 24, currentPrice, true)
     
     // Transform to match frontend expected format (manual prediction - unique ID)
     const prediction = {
@@ -214,9 +214,9 @@ app.get('/api/predictions/ETH', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // ⚠️ IMPORTANT: Manual predictions are NOT saved to DB
-    // Only UptimeRobot automation cycles save predictions to maintain clean data
-    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (not saved to DB)`)
+    // ✅ Manual predictions ARE now saved to DB for history tracking
+    // Both manual and UptimeRobot automation cycles save predictions
+    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (saved to DB)`)
     
     return c.json({
       success: true,
@@ -259,8 +259,8 @@ app.get('/api/predictions/BTC', async (c) => {
     // Create a READ-ONLY predictor instance that won't save to DB
     const predictor = new TimesFMPredictor(c.env.DB)
     
-    // Generate prediction using EXISTING data only - NO DB modification
-    const timesfmPrediction = await predictor.predictNextHours('BTC', 24, currentPrice, false)
+    // Generate prediction using EXISTING data only - SAVE to DB for history
+    const timesfmPrediction = await predictor.predictNextHours('BTC', 24, currentPrice, true)
     
     // Transform to match frontend expected format (manual prediction - unique ID)
     const prediction = {
@@ -295,9 +295,9 @@ app.get('/api/predictions/BTC', async (c) => {
       timestamp: new Date().toISOString()
     }
     
-    // ⚠️ IMPORTANT: Manual predictions are NOT saved to DB
-    // Only UptimeRobot automation cycles save predictions to maintain clean data
-    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (not saved to DB)`)
+    // ✅ Manual predictions ARE now saved to DB for history tracking
+    // Both manual and UptimeRobot automation cycles save predictions
+    console.log(`🔍 Manual prediction generated for ${prediction.crypto}: ${(prediction.predicted_return * 100).toFixed(2)}% (saved to DB)`)
     
     return c.json({
       success: true,
@@ -316,33 +316,14 @@ app.get('/api/predictions/BTC', async (c) => {
 // New endpoints for predictions and trade history - Using D1 database
 app.get('/api/predictions/history', async (c) => {
   try {
-    // First ensure table exists
-    await c.env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS predictions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        prediction_id TEXT UNIQUE NOT NULL,
-        crypto TEXT NOT NULL,
-        current_price REAL NOT NULL,
-        predicted_price REAL NOT NULL,
-        confidence_score REAL NOT NULL,
-        predicted_return REAL NOT NULL,
-        prediction_horizon TEXT NOT NULL DEFAULT '24h',
-        model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
-        quantile_10 REAL,
-        quantile_90 REAL,
-        features_analyzed TEXT,
-        analysis_data TEXT,
-        timestamp TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `).run()
+    // Use the new ai_predictions table (no need to create since we just did)
     
     // Fetch predictions from D1 database, ordered by timestamp DESC
     const result = await c.env.DB.prepare(`
       SELECT prediction_id as id, crypto, current_price, predicted_price, confidence_score as confidence,
              predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
              features_analyzed, analysis_data as analysis, timestamp
-      FROM predictions 
+      FROM ai_predictions 
       ORDER BY created_at DESC 
       LIMIT 100
     `).all()
@@ -2214,6 +2195,201 @@ app.get('/api/db/initialize-historical-data', async (c) => {
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Database initialization failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
+
+// Create new predictions table with correct schema
+app.get('/api/debug/create-new-predictions-table', async (c) => {
+  try {
+    // Create new table with different name
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS ai_predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prediction_id TEXT UNIQUE NOT NULL,
+        crypto TEXT NOT NULL,
+        current_price REAL NOT NULL,
+        predicted_price REAL NOT NULL,
+        confidence_score REAL NOT NULL,
+        predicted_return REAL NOT NULL,
+        prediction_horizon TEXT NOT NULL DEFAULT '24h',
+        model_version TEXT NOT NULL DEFAULT 'TimesFM-v2.1',
+        quantile_10 REAL,
+        quantile_90 REAL,
+        features_analyzed TEXT,
+        analysis_data TEXT,
+        timestamp TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run()
+    
+    return c.json({
+      success: true,
+      message: 'New ai_predictions table created successfully',
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Table creation failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
+
+// Debug endpoint to check recent market data entries
+app.get('/api/debug/recent-market-data', async (c) => {
+  try {
+    // Get last 10 entries for each symbol
+    const recentEth = await c.env.DB.prepare(`
+      SELECT timestamp, symbol, close_price, volume 
+      FROM market_data 
+      WHERE symbol = 'ETHUSDT' 
+      ORDER BY timestamp DESC 
+      LIMIT 10
+    `).all()
+    
+    const recentBtc = await c.env.DB.prepare(`
+      SELECT timestamp, symbol, close_price, volume 
+      FROM market_data 
+      WHERE symbol = 'BTCUSDT' 
+      ORDER BY timestamp DESC 
+      LIMIT 10
+    `).all()
+    
+    // Check today's entries specifically
+    const today = new Date().toISOString().split('T')[0] // 2025-09-25
+    const todayEth = await c.env.DB.prepare(`
+      SELECT timestamp, close_price 
+      FROM market_data 
+      WHERE symbol = 'ETHUSDT' 
+      AND DATE(timestamp) = ?
+      ORDER BY timestamp DESC
+    `).bind(today).all()
+    
+    const todayBtc = await c.env.DB.prepare(`
+      SELECT timestamp, close_price 
+      FROM market_data 
+      WHERE symbol = 'BTCUSDT' 
+      AND DATE(timestamp) = ?
+      ORDER BY timestamp DESC
+    `).bind(today).all()
+    
+    return c.json({
+      success: true,
+      recent_entries: {
+        eth: recentEth.results || [],
+        btc: recentBtc.results || []
+      },
+      today_entries: {
+        date: today,
+        eth: todayEth.results || [],
+        btc: todayBtc.results || []
+      },
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Recent data check failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
+
+// Debug endpoint to check specific hour data  
+app.get('/api/debug/check-hour/:hour', async (c) => {
+  try {
+    const hour = c.req.param('hour')
+    const today = new Date()
+    const targetHour = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hour), 0, 0, 0)
+    const hourlyTimestamp = targetHour.toISOString()
+    
+    // Check market_data for this hour
+    const ethData = await c.env.DB.prepare(`
+      SELECT * FROM market_data 
+      WHERE symbol = 'ETHUSDT' 
+      AND timestamp = ?
+    `).bind(hourlyTimestamp).first()
+    
+    const btcData = await c.env.DB.prepare(`
+      SELECT * FROM market_data 
+      WHERE symbol = 'BTCUSDT' 
+      AND timestamp = ?
+    `).bind(hourlyTimestamp).first()
+    
+    // Check if predictions exist for this hour
+    const predictionETH = await c.env.DB.prepare(`
+      SELECT * FROM predictions 
+      WHERE symbol = 'ETHUSDT' 
+      AND DATE(timestamp) = DATE(?)
+      AND strftime('%H', timestamp) = ?
+    `).bind(hourlyTimestamp, hour.padStart(2, '0')).first()
+    
+    const predictionBTC = await c.env.DB.prepare(`
+      SELECT * FROM predictions 
+      WHERE symbol = 'BTCUSDT' 
+      AND DATE(timestamp) = DATE(?)
+      AND strftime('%H', timestamp) = ?
+    `).bind(hourlyTimestamp, hour.padStart(2, '0')).first()
+    
+    return c.json({
+      success: true,
+      hour_checked: hour,
+      target_timestamp: hourlyTimestamp,
+      market_data: {
+        eth: ethData || null,
+        btc: btcData || null
+      },
+      predictions: {
+        eth: predictionETH || null,
+        btc: predictionBTC || null
+      },
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Hour check failed',
+      timestamp: new Date().toISOString()
+    })
+  }
+})
+
+// Debug endpoint to check table structure
+app.get('/api/debug/table-structure', async (c) => {
+  try {
+    // Get table schema for predictions
+    const predictionsSchema = await c.env.DB.prepare(`
+      PRAGMA table_info(predictions)
+    `).all()
+    
+    // Get table schema for market_data  
+    const marketDataSchema = await c.env.DB.prepare(`
+      PRAGMA table_info(market_data)
+    `).all()
+    
+    // Count records in each table
+    const predictionsCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM predictions').first()
+    const marketDataCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM market_data').first()
+    
+    return c.json({
+      success: true,
+      predictions_table: {
+        schema: predictionsSchema.results,
+        record_count: predictionsCount?.count || 0
+      },
+      market_data_table: {
+        schema: marketDataSchema.results,
+        record_count: marketDataCount?.count || 0
+      },
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Debug query failed',
       timestamp: new Date().toISOString()
     })
   }

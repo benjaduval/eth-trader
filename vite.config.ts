@@ -8,7 +8,7 @@ export default defineConfig({
     build(),
     devServer({
       adapter,
-      entry: 'src/simple-app.tsx'
+      entry: 'src/index.tsx'
     })
   ]
 })
