@@ -35,11 +35,11 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1.5-PRODUCTION',
+    version: '6.1.6-PRODUCTION',
     project: 'alice-predictions',
     interface: 'standalone',
-    last_commit: 'emergency-data-fill',
-    deployment_notes: 'Emergency data filling endpoint + Target18h bug fixes + Prediction system ready'
+    last_commit: 'temp-prediction-unlock',
+    deployment_notes: 'TEMPORAIRE: Seuil réduit 100h→10h pour débloquer prédictions + Emergency endpoints'
   })
 })
 
@@ -210,12 +210,12 @@ app.get('/api/predictions/ETH', async (c) => {
       ORDER BY timestamp DESC
     `).first()
     
-    if (!historicalCount || historicalCount.count < 100) {
+    if (!historicalCount || historicalCount.count < 10) {
       return c.json({
         success: false,
         error: 'Insufficient historical data for prediction. UptimeRobot cycles must accumulate more data first.',
         data_points_available: historicalCount?.count || 0,
-        required_minimum: 100,
+        required_minimum: 10,
         timestamp: new Date().toISOString()
       })
     }
@@ -302,12 +302,12 @@ app.get('/api/predictions/BTC', async (c) => {
       ORDER BY timestamp DESC
     `).first()
     
-    if (!historicalCount || historicalCount.count < 100) {
+    if (!historicalCount || historicalCount.count < 10) {
       return c.json({
         success: false,
         error: 'Insufficient historical data for prediction. UptimeRobot cycles must accumulate more data first.',
         data_points_available: historicalCount?.count || 0,
-        required_minimum: 100,
+        required_minimum: 10,
         timestamp: new Date().toISOString()
       })
     }

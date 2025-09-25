@@ -65,10 +65,10 @@ export class TimesFMPredictor {
       // Récupérer les données historiques récentes (étendu pour TimesFM)
       const historicalData = await this.getHistoricalData(normalizedSymbol, 504); // 21 jours pour minimum 400+ points
       
-      if (historicalData.length < 100) {
+      if (historicalData.length < 10) {
         await this.logTimesFMCall('Insufficient historical data for TimesFM', {
           dataPoints: historicalData.length,
-          required: 100,
+          required: 10,
           recommended: 400,
           fallback: 'neutral_prediction'
         });
