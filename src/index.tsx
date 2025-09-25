@@ -830,44 +830,25 @@ app.get('/terminal', (c) => {
             }
 
             async init() {
-                // Animation de chargement progressive
-                const loadingSteps = [
-                    { text: 'Initialisation des réseaux neuronaux...', delay: 500 },
-                    { text: 'Connexion aux flux de données en temps réel...', delay: 1000 },
-                    { text: 'Chargement des modèles TimesFM...', delay: 1500 },
-                    { text: 'Configuration du terminal AI...', delay: 2000 }
-                ];
-                
-                const loadingText = document.getElementById('loadingText');
-                let currentStep = 0;
-                
-                const updateLoading = () => {
-                    if (currentStep < loadingSteps.length) {
-                        setTimeout(() => {
-                            loadingText.textContent = loadingSteps[currentStep].text;
-                            currentStep++;
-                            updateLoading();
-                        }, loadingSteps[currentStep]?.delay || 500);
-                    } else {
-                        setTimeout(() => {
-                            this.loadTerminal();
-                        }, 500);
-                    }
-                };
-                
-                updateLoading();
+                // SUPPRIMÉ: Animation de chargement inutile
+                // L'app doit charger instantanément sans configuration
+                console.log('🚀 Alice Predictions - Chargement instantané...');
+                this.loadTerminal();
             }
 
             async loadTerminal() {
                 try {
-                    const dashboardData = await this.getMarketData();
-                    await this.loadPredictionsHistory();
-                    await this.loadTradesHistory();
-                    this.renderTerminal(dashboardData);
-                    this.setupEventListeners();
-                    
+                    // Afficher immédiatement l'interface avec données de fallback
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
+                    
+                    // Utiliser données demo pendant le chargement
+                    const demoData = this.getDemoData();
+                    this.renderTerminal(demoData);
+                    this.setupEventListeners();
+                    
+                    // Charger les vraies données en arrière-plan (non bloquant)
+                    this.loadRealDataInBackground();
                     
                 } catch (error) {
                     console.error('Erreur lors du chargement du terminal:', error);
@@ -877,6 +858,28 @@ app.get('/terminal', (c) => {
                     this.setupEventListeners();
                     document.getElementById('loading').classList.add('hidden');
                     document.getElementById('dashboard').classList.remove('hidden');
+                }
+            }
+
+            async loadRealDataInBackground() {
+                try {
+                    console.log('📡 Chargement des données réelles en arrière-plan...');
+                    
+                    // Charger en parallèle sans bloquer l'UI
+                    const [dashboardData, , ] = await Promise.allSettled([
+                        this.getMarketData(),
+                        this.loadPredictionsHistory(),
+                        this.loadTradesHistory()
+                    ]);
+                    
+                    // Mettre à jour seulement si on a de vraies données
+                    if (dashboardData.status === 'fulfilled') {
+                        this.renderTerminal(dashboardData.value);
+                        console.log('✅ Données réelles chargées');
+                    }
+                    
+                } catch (error) {
+                    console.log('ℹ️ Continuing with demo data, real data unavailable');
                 }
             }
 
