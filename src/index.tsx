@@ -766,7 +766,7 @@ app.get('/terminal', (c) => {
                             <h1 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
                                 Alice Predictions
                             </h1>
-                            <p class="text-purple-300 text-sm">TimesFM AI Trading System • <span class="text-blue-400 font-mono">v6.1.2</span></p>
+                            <p class="text-purple-300 text-sm">TimesFM AI Trading System • <span class="text-blue-400 font-mono">v6.1.3-PRODUCTION</span></p>
                         </div>
                     </div>
                     
@@ -1901,8 +1901,8 @@ app.get('/api/trading/check-positions', async (c) => {
       coingecko.getEnhancedMarketData('BTC')
     ])
 
-    const ethPrice = ethData.price_data?.ethereum?.usd || 4620
-    const btcPrice = btcData.price_data?.bitcoin?.usd || 94350
+    const ethPrice = ethData.price_data?.ethereum?.usd || 3990
+    const btcPrice = btcData.price_data?.bitcoin?.usd || 110500
 
     const results = {
       monitoring_cycle: '5min_positions',
