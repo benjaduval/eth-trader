@@ -314,10 +314,115 @@ app.get('/api/predictions/BTC', async (c) => {
   }
 })
 
+// Current price endpoints for real-time data
+app.get('/api/current-price/:crypto', async (c) => {
+  try {
+    const crypto = c.req.param('crypto').toUpperCase()
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'demo')
+    
+    if (crypto === 'ETH') {
+      const ethData = await coingecko.getEnhancedMarketData('ETH')
+      const ethPrice = ethData.price_data?.ethereum
+      if (!ethPrice) throw new Error('ETH price not available')
+      
+      return c.json({
+        success: true,
+        crypto: 'ETH',
+        price: ethPrice.usd,
+        timestamp: new Date().toISOString()
+      })
+    } else if (crypto === 'BTC') {
+      const btcData = await coingecko.getEnhancedMarketData('BTC')
+      const btcPrice = btcData.price_data?.bitcoin
+      if (!btcPrice) throw new Error('BTC price not available')
+      
+      return c.json({
+        success: true,
+        crypto: 'BTC',
+        price: btcPrice.usd,
+        timestamp: new Date().toISOString()
+      })
+    } else {
+      throw new Error(`Unsupported cryptocurrency: ${crypto}`)
+    }
+  } catch (error) {
+    console.error(`Price fetch error for ${c.req.param('crypto')}:`, error)
+    return c.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+app.get('/api/crypto/:crypto/current', async (c) => {
+  try {
+    const crypto = c.req.param('crypto').toUpperCase()
+    const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'demo')
+    
+    if (crypto === 'ETH') {
+      const ethData = await coingecko.getEnhancedMarketData('ETH')
+      const ethPrice = ethData.price_data?.ethereum
+      if (!ethPrice) throw new Error('ETH data not available')
+      
+      return c.json({
+        success: true,
+        crypto: 'ETH',
+        symbol: 'ETHUSDT',
+        price: ethPrice.usd,
+        price_change_24h: ethPrice.usd_24h_change || 0,
+        volume_24h: ethPrice.usd_24h_vol || 0,
+        timestamp: new Date().toISOString()
+      })
+    } else if (crypto === 'BTC') {
+      const btcData = await coingecko.getEnhancedMarketData('BTC')
+      const btcPrice = btcData.price_data?.bitcoin
+      if (!btcPrice) throw new Error('BTC data not available')
+      
+      return c.json({
+        success: true,
+        crypto: 'BTC',
+        symbol: 'BTCUSDT',
+        price: btcPrice.usd,
+        price_change_24h: btcPrice.usd_24h_change || 0,
+        volume_24h: btcPrice.usd_24h_vol || 0,
+        timestamp: new Date().toISOString()
+      })
+    } else {
+      throw new Error(`Unsupported cryptocurrency: ${crypto}`)
+    }
+  } catch (error) {
+    console.error(`Crypto data fetch error for ${c.req.param('crypto')}:`, error)
+    return c.json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // New endpoints for predictions and trade history - Using D1 database
 app.get('/api/predictions/history', async (c) => {
   try {
-    // Use the new ai_predictions table (no need to create since we just did)
+    // Ensure ai_predictions table exists with correct schema
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS ai_predictions (
+        prediction_id TEXT PRIMARY KEY,
+        crypto TEXT NOT NULL,
+        current_price REAL NOT NULL,
+        predicted_price REAL NOT NULL,
+        confidence_score REAL NOT NULL,
+        predicted_return REAL NOT NULL,
+        prediction_horizon TEXT NOT NULL,
+        model_version TEXT NOT NULL,
+        quantile_10 REAL,
+        quantile_90 REAL,
+        features_analyzed TEXT,
+        analysis_data TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run()
     
     // Fetch predictions from D1 database, ordered by timestamp DESC
     const result = await c.env.DB.prepare(`
@@ -325,7 +430,7 @@ app.get('/api/predictions/history', async (c) => {
              predicted_return, prediction_horizon, model_version, quantile_10, quantile_90, 
              features_analyzed, analysis_data as analysis, timestamp
       FROM ai_predictions 
-      ORDER BY created_at DESC 
+      ORDER BY timestamp DESC 
       LIMIT 100
     `).all()
     
