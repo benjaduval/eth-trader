@@ -3074,9 +3074,9 @@ app.get('/api/debug/timesfm-data-coverage', async (c) => {
   try {
     // Calculate target: 450 hours before 18:00 today (2025-09-25)
     const now = new Date()
-    const now = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0)
+    const target18h = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0, 0)
     const hoursBack = 450
-    const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+    const startTime = new Date(target18h.getTime() - hoursBack * 60 * 60 * 1000)
     
     // Check ETH data coverage
     const ethCoverage = await c.env.DB.prepare(`
@@ -3420,7 +3420,7 @@ app.get('/api/admin/rebuild-database/:crypto?', async (c) => {
       // Obtenir prix ETH actuel pour base
       const ethData = await coingecko.getEnhancedMarketData('ETH')
       if (!ethData.price_data?.ethereum?.usd) {
-        throw new Error('Impossible d\\'obtenir le prix ETH actuel')
+        throw new Error('Impossible d\'obtenir le prix ETH actuel')
       }
       
       const currentETHPrice = ethData.price_data.ethereum.usd
@@ -3484,7 +3484,7 @@ app.get('/api/admin/rebuild-database/:crypto?', async (c) => {
       // Obtenir prix BTC actuel pour base
       const btcData = await coingecko.getEnhancedMarketData('BTC')
       if (!btcData.price_data?.bitcoin?.usd) {
-        throw new Error('Impossible d\\'obtenir le prix BTC actuel')
+        throw new Error('Impossible d\'obtenir le prix BTC actuel')
       }
       
       const currentBTCPrice = btcData.price_data.bitcoin.usd
