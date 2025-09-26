@@ -178,6 +178,51 @@ app.get('/api/market/BTC', async (c) => {
 // MANUAL prediction generation - Uses existing DB data ONLY, does not modify DB
 app.get('/api/predictions/ETH', async (c) => {
   try {
+    // ===== RATE LIMITING PROTECTION =====
+    // Check if recent prediction exists (within last 45 minutes)
+    const recentPrediction = await c.env.DB.prepare(`
+      SELECT prediction_id, created_at 
+      FROM ai_predictions 
+      WHERE crypto = 'ETH' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).first()
+    
+    if (recentPrediction) {
+      const lastPredictionTime = new Date(recentPrediction.created_at)
+      const now = new Date()
+      const timeDiffMinutes = (now.getTime() - lastPredictionTime.getTime()) / (1000 * 60)
+      
+      // If last prediction was less than 45 minutes ago, return it instead of creating new one
+      if (timeDiffMinutes < 45) {
+        console.log(`⏱️  Prédiction ETH récente trouvée (${Math.round(timeDiffMinutes)}min ago), réutilisation...`)
+        
+        // Get the recent prediction data
+        const existingPrediction = await c.env.DB.prepare(`
+          SELECT * FROM ai_predictions 
+          WHERE prediction_id = ?
+        `).bind(recentPrediction.prediction_id).first()
+        
+        if (existingPrediction) {
+          return c.json({
+            success: true,
+            prediction: {
+              current_price: existingPrediction.current_price,
+              predicted_price: existingPrediction.predicted_price,
+              confidence: existingPrediction.confidence_score,
+              prediction_time: existingPrediction.created_at,
+              prediction_horizon: existingPrediction.prediction_horizon,
+              model_version: existingPrediction.model_version
+            },
+            cached: true,
+            cache_age_minutes: Math.round(timeDiffMinutes),
+            message: `Prédiction récente réutilisée (${Math.round(timeDiffMinutes)}min)`,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+    }
+    
     // IMPORTANT: This endpoint should ONLY read existing data and generate predictions
     // It should NOT modify the database or add new market data
     
@@ -273,6 +318,51 @@ app.get('/api/predictions/ETH', async (c) => {
 
 app.get('/api/predictions/BTC', async (c) => {
   try {
+    // ===== RATE LIMITING PROTECTION =====
+    // Check if recent prediction exists (within last 45 minutes)
+    const recentPrediction = await c.env.DB.prepare(`
+      SELECT prediction_id, created_at 
+      FROM ai_predictions 
+      WHERE crypto = 'BTC' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).first()
+    
+    if (recentPrediction) {
+      const lastPredictionTime = new Date(recentPrediction.created_at)
+      const now = new Date()
+      const timeDiffMinutes = (now.getTime() - lastPredictionTime.getTime()) / (1000 * 60)
+      
+      // If last prediction was less than 45 minutes ago, return it instead of creating new one
+      if (timeDiffMinutes < 45) {
+        console.log(`⏱️  Prédiction BTC récente trouvée (${Math.round(timeDiffMinutes)}min ago), réutilisation...`)
+        
+        // Get the recent prediction data
+        const existingPrediction = await c.env.DB.prepare(`
+          SELECT * FROM ai_predictions 
+          WHERE prediction_id = ?
+        `).bind(recentPrediction.prediction_id).first()
+        
+        if (existingPrediction) {
+          return c.json({
+            success: true,
+            prediction: {
+              current_price: existingPrediction.current_price,
+              predicted_price: existingPrediction.predicted_price,
+              confidence: existingPrediction.confidence_score,
+              prediction_time: existingPrediction.created_at,
+              prediction_horizon: existingPrediction.prediction_horizon,
+              model_version: existingPrediction.model_version
+            },
+            cached: true,
+            cache_age_minutes: Math.round(timeDiffMinutes),
+            message: `Prédiction récente réutilisée (${Math.round(timeDiffMinutes)}min)`,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+    }
+    
     // MANUAL prediction generation - Uses existing DB data ONLY, does not modify DB
     const marketResponse = await fetch(`${c.req.url.replace('/predictions/BTC', '/market/BTC')}`)
     const marketData = await marketResponse.json()
@@ -639,6 +729,136 @@ app.get('/api/portfolio', (c) => {
     positions: 2,
     timestamp: new Date().toISOString()
   })
+})
+
+// ========================================
+// PREDICTION CONTROL ENDPOINTS
+// ========================================
+
+// Admin endpoint to clean excessive predictions
+app.delete('/api/admin/predictions/cleanup', async (c) => {
+  try {
+    const { crypto, keep_last } = c.req.query()
+    const cryptoSymbol = crypto?.toUpperCase() || 'ETH'
+    const keepCount = parseInt(keep_last) || 10
+    
+    console.log(`🧹 Nettoyage des prédictions ${cryptoSymbol}, garder les ${keepCount} dernières...`)
+    
+    // Get total count before cleanup
+    const countResult = await c.env.DB.prepare(
+      'SELECT COUNT(*) as total FROM ai_predictions WHERE crypto = ?'
+    ).bind(cryptoSymbol).first()
+    
+    const totalBefore = countResult?.total || 0
+    
+    // Keep only the last N predictions (most recent ones)
+    const cleanupQuery = `
+      DELETE FROM ai_predictions 
+      WHERE crypto = ? 
+      AND prediction_id NOT IN (
+        SELECT prediction_id FROM ai_predictions 
+        WHERE crypto = ? 
+        ORDER BY created_at DESC 
+        LIMIT ?
+      )
+    `
+    
+    const result = await c.env.DB.prepare(cleanupQuery)
+      .bind(cryptoSymbol, cryptoSymbol, keepCount)
+      .run()
+    
+    const deletedCount = result.changes || 0
+    const remaining = totalBefore - deletedCount
+    
+    console.log(`✅ Nettoyage terminé: ${deletedCount} prédictions supprimées, ${remaining} restantes`)
+    
+    return c.json({
+      success: true,
+      message: `Prédictions nettoyées pour ${cryptoSymbol}`,
+      deleted: deletedCount,
+      remaining: remaining,
+      kept_last: keepCount,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du nettoyage:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to cleanup predictions',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Prediction rate limiting control
+app.get('/api/admin/predictions/rate-limit', async (c) => {
+  try {
+    const { crypto } = c.req.query()
+    const cryptoSymbol = crypto?.toUpperCase() || 'ETH'
+    
+    // Get recent predictions to check frequency
+    const recentPredictions = await c.env.DB.prepare(`
+      SELECT prediction_id, created_at 
+      FROM ai_predictions 
+      WHERE crypto = ? 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `).bind(cryptoSymbol).all()
+    
+    const predictions = recentPredictions.results || []
+    
+    if (predictions.length < 2) {
+      return c.json({
+        success: true,
+        crypto: cryptoSymbol,
+        message: 'Pas assez de prédictions pour analyser la fréquence',
+        predictions_count: predictions.length,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Calculate intervals between predictions
+    const intervals = []
+    for (let i = 0; i < predictions.length - 1; i++) {
+      const current = new Date(predictions[i].created_at)
+      const previous = new Date(predictions[i + 1].created_at)
+      const intervalMinutes = (current.getTime() - previous.getTime()) / (1000 * 60)
+      intervals.push(Math.round(intervalMinutes))
+    }
+    
+    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
+    const minInterval = Math.min(...intervals)
+    const maxInterval = Math.max(...intervals)
+    
+    const status = avgInterval < 10 ? 'TOO_FREQUENT' : avgInterval < 55 ? 'FREQUENT' : 'NORMAL'
+    
+    return c.json({
+      success: true,
+      crypto: cryptoSymbol,
+      status: status,
+      average_interval_minutes: Math.round(avgInterval),
+      min_interval_minutes: minInterval,
+      max_interval_minutes: maxInterval,
+      recent_intervals: intervals,
+      predictions_analyzed: predictions.length,
+      recommendation: status === 'TOO_FREQUENT' 
+        ? 'Réduire la fréquence des prédictions - intervalle recommandé: 60 minutes'
+        : status === 'FREQUENT'
+        ? 'Fréquence élevée mais acceptable - surveiller'
+        : 'Fréquence normale - OK',
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur analyse fréquence:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to analyze prediction frequency',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
 })
 
 // Route de login simple
