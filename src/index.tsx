@@ -792,6 +792,50 @@ app.delete('/api/admin/predictions/cleanup', async (c) => {
   }
 })
 
+// COMPLETE predictions cleanup - ONLY predictions table, NO other data
+app.delete('/api/admin/predictions/cleanup-all', async (c) => {
+  try {
+    console.log('🧹 NETTOYAGE COMPLET des prédictions (TOUTES)...')
+    
+    // Get total count before cleanup
+    const countResult = await c.env.DB.prepare(
+      'SELECT COUNT(*) as total FROM ai_predictions'
+    ).first()
+    
+    const totalBefore = countResult?.total || 0
+    console.log(`📊 Prédictions avant nettoyage: ${totalBefore}`)
+    
+    // DELETE ALL predictions - ONLY from ai_predictions table
+    const result = await c.env.DB.prepare(`
+      DELETE FROM ai_predictions
+    `).run()
+    
+    const deletedCount = result.changes || 0
+    
+    console.log(`✅ Nettoyage complet terminé: ${deletedCount} prédictions supprimées`)
+    
+    return c.json({
+      success: true,
+      message: 'TOUTES les prédictions ont été supprimées',
+      deleted: deletedCount,
+      before_count: totalBefore,
+      after_count: 0,
+      tables_affected: ['ai_predictions ONLY'],
+      tables_preserved: ['market_data', 'paper_trades', 'autres tables DB'],
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du nettoyage complet:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to cleanup all predictions',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Alternative GET endpoint for cleanup (easier testing)
 app.get('/api/admin/predictions/cleanup-get', async (c) => {
   try {
@@ -946,6 +990,78 @@ app.get('/api/predictions/details/:id', async (c) => {
       success: false,
       error: 'Failed to get prediction details',
       message: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Prediction monitoring alert - Check if predictions are being generated
+app.get('/api/admin/predictions/alert-check', async (c) => {
+  try {
+    // Get the most recent prediction
+    const latestPrediction = await c.env.DB.prepare(`
+      SELECT prediction_id, crypto, created_at 
+      FROM ai_predictions 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).first()
+    
+    if (!latestPrediction) {
+      return c.json({
+        success: true,
+        alert_status: 'CRITICAL',
+        message: '🚨 AUCUNE prédiction trouvée dans la base de données',
+        minutes_since_last: null,
+        threshold_minutes: 70,
+        action_required: 'Vérifier le système de prédictions immédiatement',
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    const lastPredictionTime = new Date(latestPrediction.created_at)
+    const now = new Date()
+    const minutesSinceLast = (now.getTime() - lastPredictionTime.getTime()) / (1000 * 60)
+    
+    let alertStatus, message, actionRequired
+    
+    if (minutesSinceLast > 70) {
+      alertStatus = 'CRITICAL'
+      message = `🚨 ALERTE CRITIQUE: Aucune prédiction depuis ${Math.round(minutesSinceLast)} minutes (seuil: 70min)`
+      actionRequired = 'Vérifier UptimeRobot monitor 1h et endpoint /api/automation/hourly'
+    } else if (minutesSinceLast > 50) {
+      alertStatus = 'WARNING' 
+      message = `⚠️ Attention: ${Math.round(minutesSinceLast)} minutes depuis la dernière prédiction (seuil: 70min)`
+      actionRequired = 'Surveiller - prochaine prédiction attendue bientôt'
+    } else {
+      alertStatus = 'OK'
+      message = `✅ Système normal: dernière prédiction il y a ${Math.round(minutesSinceLast)} minutes`
+      actionRequired = 'Aucune action requise'
+    }
+    
+    return c.json({
+      success: true,
+      alert_status: alertStatus,
+      message: message,
+      minutes_since_last: Math.round(minutesSinceLast),
+      threshold_minutes: 70,
+      latest_prediction: {
+        id: latestPrediction.prediction_id,
+        crypto: latestPrediction.crypto,
+        created_at: latestPrediction.created_at,
+        formatted_time: lastPredictionTime.toLocaleString('fr-FR')
+      },
+      action_required: actionRequired,
+      monitor_url: 'https://alice-predictions.pages.dev/api/automation/hourly',
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur vérification alerte prédictions:', error)
+    return c.json({
+      success: false,
+      alert_status: 'ERROR',
+      message: 'Erreur lors de la vérification des prédictions',
+      error: error.message,
       timestamp: new Date().toISOString()
     }, 500)
   }
