@@ -35,11 +35,11 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '6.1.6-PRODUCTION',
+    version: '6.1.7-PRODUCTION',
     project: 'alice-predictions',
     interface: 'standalone',
-    last_commit: 'temp-prediction-unlock',
-    deployment_notes: 'TEMPORAIRE: Seuil réduit 100h→10h pour débloquer prédictions + Emergency endpoints'
+    last_commit: 'force-deploy-6.1.7',
+    deployment_notes: 'FORCE DEPLOY: Seuils 10h + Emergency fill + 510h historical data strategy'
   })
 })
 
