@@ -62,7 +62,10 @@ VITE_BUILD_ENV=production
     .replace(/process\.env\.BUILD_TIMESTAMP \|\| new Date\(\)\.toISOString\(\)/, `'${buildTime}'`);
   
   writeFileSync(versionTsPath + '.build', versionTs);
-  console.log('✅ Version build file créé');
+  
+  // Remplacer le fichier original par la version buildée
+  writeFileSync(versionTsPath, versionTs);
+  console.log('✅ Version file mis à jour avec les valeurs de build');
 
 } catch (error) {
   console.error('❌ Erreur injection version:', error.message);

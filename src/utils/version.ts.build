@@ -20,10 +20,10 @@ export function getVersionInfo(): VersionInfo {
   const packageVersion = '1.2.0';
   
   // Hash du commit git (injecté au build)
-  const gitCommit = 'c4afccf2e9785e3275a25ee4dfec099d345636d4';
+  const gitCommit = '78f5b724d783ea26345df97fd25b5f730911f7c6';
   
   // Timestamp de build
-  const buildTime = '2025-09-26T11:18:23.589Z';
+  const buildTime = '2025-09-26T12:55:58.816Z';
   
   // Environnement
   const isProduction = process.env.NODE_ENV === 'production' || 

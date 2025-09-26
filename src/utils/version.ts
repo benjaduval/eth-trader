@@ -17,13 +17,13 @@ export interface VersionInfo {
  */
 export function getVersionInfo(): VersionInfo {
   // Version depuis package.json (injectée au build)
-  const packageVersion = process.env.npm_package_version || '1.1.0';
+  const packageVersion = '1.2.0';
   
   // Hash du commit git (injecté au build)
-  const gitCommit = process.env.GIT_COMMIT_HASH || 'dev-build';
+  const gitCommit = '78f5b724d783ea26345df97fd25b5f730911f7c6';
   
   // Timestamp de build
-  const buildTime = process.env.BUILD_TIMESTAMP || new Date().toISOString();
+  const buildTime = '2025-09-26T12:55:58.816Z';
   
   // Environnement
   const isProduction = process.env.NODE_ENV === 'production' || 
