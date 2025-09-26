@@ -963,7 +963,7 @@ app.get('/terminal', (c) => {
                             <h1 class="text-xl lg:text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent holographic-text">
                                 Alice Predictions
                             </h1>
-                            <p class="text-purple-300 text-sm">TimesFM AI Trading System • <span class="text-blue-400 font-mono">v6.1.3-PRODUCTION</span></p>
+                            <p class="text-purple-300 text-sm">TimesFM AI Trading System • <span id="version-display" class="text-blue-400 font-mono">Loading...</span></p>
                         </div>
                     </div>
                     
@@ -1925,9 +1925,48 @@ app.get('/terminal', (c) => {
             }
         }
 
+        // Fonction pour charger la version dynamiquement
+        async function loadVersion() {
+            try {
+                const response = await fetch('/api/health');
+                const healthData = await response.json();
+                
+                if (healthData.success !== false) {
+                    // Créer l'affichage version: v{version} • {commit}
+                    const versionText = \`v\${healthData.version} • \${healthData.last_commit}\`;
+                    const versionElement = document.getElementById('version-display');
+                    
+                    if (versionElement) {
+                        versionElement.textContent = versionText;
+                        versionElement.title = \`Build: \${healthData.build_time || 'Unknown'} | Env: \${healthData.environment || 'production'}\`;
+                    }
+                    
+                    console.log('📦 Version loaded:', {
+                        version: healthData.version,
+                        commit: healthData.last_commit,
+                        build_time: healthData.build_time,
+                        environment: healthData.environment
+                    });
+                } else {
+                    throw new Error('Health check failed');
+                }
+            } catch (error) {
+                console.warn('⚠️ Version loading failed:', error.message);
+                const versionElement = document.getElementById('version-display');
+                if (versionElement) {
+                    versionElement.textContent = 'v?.?.?-UNKNOWN';
+                    versionElement.title = 'Version unavailable';
+                }
+            }
+        }
+
         // Initialiser l'application au chargement de la page
         let terminal;
         document.addEventListener('DOMContentLoaded', () => {
+            // Charger la version en premier
+            loadVersion();
+            
+            // Puis initialiser le terminal
             terminal = new EthereumAITradingTerminal();
         });
     </script>
