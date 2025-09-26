@@ -1754,7 +1754,7 @@ app.get('/terminal', (c) => {
                                 </div>
                             </div>
                             <div class="text-center lg:text-right">
-                                <div class="text-2xl lg:text-3xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
+                                <div class="text-2xl lg:text-3xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || '<span class="flex items-center text-blue-400"><svg class="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading...</span>'}</div>
                                 <div class="text-sm text-gray-400">\${this.currentCrypto}/USD • Live Price</div>
                             </div>
                         </div>
@@ -1778,22 +1778,22 @@ app.get('/terminal', (c) => {
                                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                                     <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
                                         <div class="text-gray-300 text-xs lg:text-sm">Current Price</div>
-                                        <div class="text-lg lg:text-xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || 'N/A'}</div>
+                                        <div class="text-lg lg:text-xl font-bold text-white">$\${dashboard.current_price?.toLocaleString() || '<span class="flex items-center text-blue-400"><svg class="animate-spin -ml-1 mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}</div>
                                         <div class="text-green-400 text-xs">+2.4%</div>
                                     </div>
                                     <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
                                         <div class="text-gray-300 text-xs lg:text-sm">24h Volume</div>
-                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.volume_24h ? '$' + (dashboard.market_data.volume_24h / 1e9).toFixed(1) + 'B' : 'N/A'}</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.volume_24h ? '$' + (dashboard.market_data.volume_24h / 1e9).toFixed(1) + 'B' : '<span class="flex items-center text-blue-400"><svg class="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}</div>
                                         <div class="text-blue-400 text-xs">High</div>
                                     </div>
                                     <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
                                         <div class="text-gray-300 text-xs lg:text-sm">Market Cap</div>
-                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.market_cap ? '$' + (dashboard.market_data.market_cap / 1e9).toFixed(0) + 'B' : 'N/A'}</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.market_cap ? '$' + (dashboard.market_data.market_cap / 1e9).toFixed(0) + 'B' : '<span class="flex items-center text-blue-400"><svg class="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}</div>
                                         <div class="text-green-400 text-xs">Rank #\${this.currentCrypto === 'ETH' ? '2' : '1'}</div>
                                     </div>
                                     <div class="bg-gray-800/50 p-3 lg:p-4 rounded-lg border border-gray-600">
                                         <div class="text-gray-300 text-xs lg:text-sm">Volatility</div>
-                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.price_change_percentage_24h ? Math.abs(dashboard.market_data.price_change_percentage_24h).toFixed(1) + '%' : 'N/A'}</div>
+                                        <div class="text-sm lg:text-lg font-bold text-white">\${dashboard.market_data?.price_change_percentage_24h ? Math.abs(dashboard.market_data.price_change_percentage_24h).toFixed(1) + '%' : '<span class="flex items-center text-blue-400"><svg class="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}</div>
                                         <div class="text-orange-400 text-xs">Moderate</div>
                                     </div>
                                 </div>
@@ -1824,14 +1824,14 @@ app.get('/terminal', (c) => {
                                             $\${latestPrediction?.predicted_price?.toLocaleString() || 'Computing...'}
                                         </div>
                                         <div class="text-xs text-blue-400">
-                                            Confidence: \${latestPrediction?.confidence ? (latestPrediction.confidence * 100).toFixed(1) + '%' : 'N/A'}
+                                            Confidence: \${latestPrediction?.confidence ? (latestPrediction.confidence * 100).toFixed(1) + '%' : '<span class="inline-flex items-center text-blue-400"><svg class="animate-spin mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}
                                         </div>
                                     </div>
                                     
                                     <div class="bg-green-800/40 p-4 rounded-lg border border-green-400/30">
                                         <div class="text-green-300 text-sm mb-2">Expected Return</div>
                                         <div class="text-xl lg:text-2xl font-bold \${latestPrediction?.predicted_return && latestPrediction.predicted_return > 0 ? 'text-green-400' : 'text-red-400'} mb-1">
-                                            \${latestPrediction?.predicted_return ? (latestPrediction.predicted_return * 100).toFixed(2) + '%' : 'N/A'}
+                                            \${latestPrediction?.predicted_return ? (latestPrediction.predicted_return * 100).toFixed(2) + '%' : '<span class="inline-flex items-center text-blue-400"><svg class="animate-spin mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}
                                         </div>
                                         <div class="text-xs text-green-400">24h Horizon</div>
                                     </div>
@@ -1839,7 +1839,7 @@ app.get('/terminal', (c) => {
                                     <div class="bg-purple-800/40 p-4 rounded-lg border border-purple-400/30">
                                         <div class="text-purple-300 text-sm mb-2">Risk Range</div>
                                         <div class="text-sm font-bold text-white mb-1">
-                                            \${latestPrediction?.quantile_10 ? '$' + latestPrediction.quantile_10.toLocaleString() : 'N/A'} - \${latestPrediction?.quantile_90 ? '$' + latestPrediction.quantile_90.toLocaleString() : 'N/A'}
+                                            \${latestPrediction?.quantile_10 ? '$' + latestPrediction.quantile_10.toLocaleString() : '<span class="inline-flex items-center text-blue-400"><svg class="animate-spin mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'} - \${latestPrediction?.quantile_90 ? '$' + latestPrediction.quantile_90.toLocaleString() : '<span class="inline-flex items-center text-blue-400"><svg class="animate-spin mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading</span>'}
                                         </div>
                                         <div class="text-xs text-purple-400">90% Confidence</div>
                                     </div>
