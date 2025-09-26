@@ -792,6 +792,76 @@ app.delete('/api/admin/predictions/cleanup', async (c) => {
   }
 })
 
+// Alternative GET endpoint for cleanup (easier testing)
+app.get('/api/admin/predictions/cleanup-get', async (c) => {
+  try {
+    const { crypto, keep_last } = c.req.query()
+    const cryptoSymbol = crypto?.toUpperCase() || 'ETH'
+    const keepCount = parseInt(keep_last) || 10
+    
+    console.log(`🧹 Nettoyage GET des prédictions ${cryptoSymbol}, garder les ${keepCount} dernières...`)
+    
+    // Get all predictions sorted by date (newest first)
+    const allPredictions = await c.env.DB.prepare(`
+      SELECT prediction_id, created_at 
+      FROM ai_predictions 
+      WHERE crypto = ? 
+      ORDER BY created_at DESC
+    `).bind(cryptoSymbol).all()
+    
+    const predictions = allPredictions.results || []
+    const totalBefore = predictions.length
+    
+    if (totalBefore <= keepCount) {
+      return c.json({
+        success: true,
+        message: `Pas de nettoyage nécessaire pour ${cryptoSymbol}`,
+        total_predictions: totalBefore,
+        kept_last: keepCount,
+        deleted: 0,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Get IDs to delete (all except the first keepCount)
+    const toDelete = predictions.slice(keepCount)
+    let deletedCount = 0
+    
+    // Delete predictions one by one (more reliable than complex SQL)
+    for (const pred of toDelete) {
+      try {
+        await c.env.DB.prepare(`
+          DELETE FROM ai_predictions WHERE prediction_id = ?
+        `).bind(pred.prediction_id).run()
+        deletedCount++
+      } catch (deleteError) {
+        console.error(`❌ Erreur suppression prédiction ${pred.prediction_id}:`, deleteError)
+      }
+    }
+    
+    console.log(`✅ Nettoyage terminé: ${deletedCount} prédictions supprimées, ${totalBefore - deletedCount} restantes`)
+    
+    return c.json({
+      success: true,
+      message: `Prédictions nettoyées pour ${cryptoSymbol}`,
+      total_before: totalBefore,
+      deleted: deletedCount,
+      remaining: totalBefore - deletedCount,
+      kept_last: keepCount,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du nettoyage GET:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to cleanup predictions',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Prediction rate limiting control
 app.get('/api/admin/predictions/rate-limit', async (c) => {
   try {
