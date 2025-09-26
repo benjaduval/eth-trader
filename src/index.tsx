@@ -862,6 +862,95 @@ app.get('/api/admin/predictions/cleanup-get', async (c) => {
   }
 })
 
+// Get detailed prediction information for popup
+app.get('/api/predictions/details/:id', async (c) => {
+  try {
+    const predictionId = c.req.param('id')
+    
+    // Get prediction details
+    const prediction = await c.env.DB.prepare(`
+      SELECT * FROM ai_predictions WHERE prediction_id = ?
+    `).bind(predictionId).first()
+    
+    if (!prediction) {
+      return c.json({
+        success: false,
+        error: 'Prediction not found',
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+    
+    // Get historical data used for this prediction (last 450+ points)
+    const historicalData = await c.env.DB.prepare(`
+      SELECT timestamp, close_price 
+      FROM market_data 
+      WHERE symbol = ? 
+      AND timestamp <= ? 
+      ORDER BY timestamp DESC 
+      LIMIT 500
+    `).bind(
+      prediction.crypto === 'ETH' ? 'ETHUSDT' : 'BTCUSDT',
+      prediction.created_at
+    ).all()
+    
+    const dataPoints = historicalData.results || []
+    
+    // Calculate prediction accuracy if time has passed
+    let accuracy = null
+    let actualPrice = null
+    const predictionTime = new Date(prediction.created_at)
+    const now = new Date()
+    const hoursPassed = (now.getTime() - predictionTime.getTime()) / (1000 * 60 * 60)
+    
+    if (hoursPassed >= 24) { // Check accuracy after 24h
+      try {
+        const coingecko = new CoinGeckoService(c.env.COINGECKO_API_KEY || 'CG-x5dWQp9xfuNgFKhSDsnipde4')
+        const marketData = await coingecko.getEnhancedMarketData(prediction.crypto)
+        actualPrice = marketData.price_data?.[prediction.crypto.toLowerCase()]?.usd || null
+        
+        if (actualPrice) {
+          const predictedReturn = (prediction.predicted_price - prediction.current_price) / prediction.current_price
+          const actualReturn = (actualPrice - prediction.current_price) / prediction.current_price
+          accuracy = 100 - Math.abs(predictedReturn - actualReturn) * 100
+        }
+      } catch (error) {
+        console.warn('Could not fetch current price for accuracy calculation:', error)
+      }
+    }
+    
+    return c.json({
+      success: true,
+      prediction: {
+        id: prediction.prediction_id,
+        crypto: prediction.crypto,
+        created_at: prediction.created_at,
+        current_price: prediction.current_price,
+        predicted_price: prediction.predicted_price,
+        confidence_score: prediction.confidence_score,
+        predicted_return: prediction.predicted_return,
+        prediction_horizon: prediction.prediction_horizon,
+        model_version: prediction.model_version,
+        analysis_summary: prediction.analysis_summary || 'TimesFM forecasting model analysis based on historical price patterns and market trends.',
+        data_points_used: dataPoints.length,
+        historical_data: dataPoints.slice(0, 50), // First 50 points for display
+        accuracy: accuracy,
+        actual_price: actualPrice,
+        hours_passed: Math.round(hoursPassed)
+      },
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur récupération détails prédiction:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to get prediction details',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Prediction rate limiting control
 app.get('/api/admin/predictions/rate-limit', async (c) => {
   try {
@@ -1675,7 +1764,10 @@ app.get('/terminal', (c) => {
                                     
                                     <div class="max-h-64 overflow-y-auto space-y-2">
                                         \${this.predictionsHistory.filter(p => p.crypto === this.currentCrypto).slice(0, 8).map(prediction => \`
-                                            <div class="bg-gray-800/50 p-3 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-700/50 transition-colors" data-prediction-id="\${prediction.id}">
+                                            <div class="bg-gray-800/50 p-3 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-700/50 transition-colors prediction-item" 
+                                                 data-prediction-id="\${prediction.id}" 
+                                                 onclick="showPredictionDetails('\${prediction.id}')"
+                                                 title="Cliquez pour voir les détails complets de l'analyse">
                                                 <div class="flex justify-between items-center mb-1">
                                                     <div class="text-white text-sm font-medium">\${prediction.confidence ? (prediction.confidence * 100).toFixed(1) : 'N/A'}% confidence</div>
                                                     <div class="text-xs text-gray-400">\${new Date(prediction.timestamp).toLocaleTimeString()}</div>
@@ -1687,6 +1779,9 @@ app.get('/terminal', (c) => {
                                                     <div class="text-xs \${prediction.predicted_return && prediction.predicted_return > 0 ? 'text-green-400' : 'text-red-400'}">
                                                         \${prediction.predicted_return ? (prediction.predicted_return * 100).toFixed(2) + '%' : 'N/A'}
                                                     </div>
+                                                </div>
+                                                <div class="text-xs text-blue-400 mt-1 opacity-70">
+                                                    📋 Cliquez pour l'analyse complète
                                                 </div>
                                             </div>
                                         \`).join('') || '<div class="text-gray-500 text-center py-4">No predictions yet</div>'}
@@ -1862,6 +1957,9 @@ app.get('/terminal', (c) => {
                 \`;
                 
                 document.getElementById('dashboardContent').innerHTML = content;
+                
+                // Ajouter la popup pour les détails des prédictions
+                this.addPredictionPopup();
                 
                 // Initialiser TradingView Widget
                 setTimeout(() => {
@@ -2213,7 +2311,174 @@ app.get('/terminal', (c) => {
                     toast.remove();
                 }, 3000);
             }
+            
+            addPredictionPopup() {
+                // Créer la popup s'il n'existe pas déjà
+                if (!document.getElementById('predictionPopup')) {
+                    const popup = document.createElement('div');
+                    popup.id = 'predictionPopup';
+                    popup.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+                    popup.innerHTML = \`
+                        <div class="bg-gray-900 border border-gray-600 rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-y-auto w-full mx-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-white flex items-center">
+                                    <span class="mr-2">🧠</span>
+                                    Analyse Détaillée de la Prédiction
+                                </h2>
+                                <button onclick="closePredictionPopup()" class="text-gray-400 hover:text-white text-2xl">×</button>
+                            </div>
+                            <div id="predictionPopupContent">
+                                <div class="text-center text-gray-400">Chargement...</div>
+                            </div>
+                        </div>
+                    \`;
+                    document.body.appendChild(popup);
+                }
+            }
         }
+
+        // Fonctions globales pour la popup des prédictions
+        async function showPredictionDetails(predictionId) {
+            const popup = document.getElementById('predictionPopup');
+            const content = document.getElementById('predictionPopupContent');
+            
+            if (!popup || !content) return;
+            
+            popup.classList.remove('hidden');
+            content.innerHTML = '<div class="text-center text-gray-400">🔄 Chargement des détails...</div>';
+            
+            try {
+                const response = await fetch(\`/api/predictions/details/\${predictionId}\`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const prediction = data.prediction;
+                    const accuracyDisplay = prediction.accuracy !== null 
+                        ? \`<div class="text-\${prediction.accuracy > 70 ? 'green' : prediction.accuracy > 50 ? 'yellow' : 'red'}-400 font-medium">
+                             📊 Précision: \${prediction.accuracy.toFixed(1)}% (vérifiée après \${prediction.hours_passed}h)
+                           </div>\`
+                        : '<div class="text-gray-400">⏳ Précision: En attente (vérification après 24h)</div>';
+                    
+                    content.innerHTML = \`
+                        <div class="space-y-6">
+                            <!-- En-tête de la prédiction -->
+                            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <div class="text-sm text-gray-400">Asset</div>
+                                        <div class="text-lg font-bold text-white">\${prediction.crypto}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm text-gray-400">Confiance</div>
+                                        <div class="text-lg font-bold text-\${prediction.confidence_score > 0.6 ? 'green' : prediction.confidence_score > 0.5 ? 'yellow' : 'red'}-400">
+                                            \${(prediction.confidence_score * 100).toFixed(1)}%
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm text-gray-400">Horizon</div>
+                                        <div class="text-lg font-bold text-blue-400">\${prediction.prediction_horizon}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Prédiction et Prix -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                    <div class="text-sm text-gray-400 mb-2">💰 Prix Actuel (au moment de la prédiction)</div>
+                                    <div class="text-2xl font-bold text-white">$\${prediction.current_price.toLocaleString()}</div>
+                                    <div class="text-xs text-gray-500 mt-1">\${new Date(prediction.created_at).toLocaleString('fr-FR')}</div>
+                                </div>
+                                <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                    <div class="text-sm text-gray-400 mb-2">🎯 Prix Prédit</div>
+                                    <div class="text-2xl font-bold text-\${prediction.predicted_return > 0 ? 'green' : 'red'}-400">
+                                        $\${prediction.predicted_price.toLocaleString()}
+                                    </div>
+                                    <div class="text-sm text-\${prediction.predicted_return > 0 ? 'green' : 'red'}-400 mt-1">
+                                        \${prediction.predicted_return > 0 ? '+' : ''}\${(prediction.predicted_return * 100).toFixed(2)}%
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Précision (si disponible) -->
+                            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                \${accuracyDisplay}
+                                \${prediction.actual_price ? \`
+                                    <div class="mt-2 text-sm">
+                                        <span class="text-gray-400">Prix actuel: </span>
+                                        <span class="text-white font-medium">$\${prediction.actual_price.toLocaleString()}</span>
+                                    </div>
+                                \` : ''}
+                            </div>
+                            
+                            <!-- Analyse et Données -->
+                            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                <h3 class="text-lg font-bold text-white mb-3">📊 Données d'Analyse</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <div class="text-sm text-gray-400">Modèle Utilisé</div>
+                                        <div class="text-white font-medium">\${prediction.model_version}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm text-gray-400">Points de Données</div>
+                                        <div class="text-white font-medium">\${prediction.data_points_used} heures historiques</div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="text-sm text-gray-400">Résumé de l'Analyse</div>
+                                    <div class="text-white text-sm mt-1">\${prediction.analysis_summary}</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Échantillon des Données Historiques -->
+                            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+                                <h3 class="text-lg font-bold text-white mb-3">📈 Échantillon des Données Utilisées (50 derniers points)</h3>
+                                <div class="max-h-48 overflow-y-auto">
+                                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                                        \${prediction.historical_data.map((point, index) => \`
+                                            <div class="bg-gray-700/50 p-2 rounded border border-gray-600">
+                                                <div class="text-gray-400">H-\${index + 1}</div>
+                                                <div class="text-white font-medium">$\${point.close_price.toLocaleString()}</div>
+                                                <div class="text-gray-500 text-xs">\${new Date(point.timestamp).toLocaleDateString('fr-FR')}</div>
+                                            </div>
+                                        \`).join('')}
+                                    </div>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-2">
+                                    ⚡ Total de \${prediction.data_points_used} points utilisés pour cette prédiction TimesFM
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                } else {
+                    content.innerHTML = \`
+                        <div class="text-center text-red-400">
+                            ❌ Erreur: \${data.error || 'Impossible de charger les détails'}
+                        </div>
+                    \`;
+                }
+            } catch (error) {
+                content.innerHTML = \`
+                    <div class="text-center text-red-400">
+                        ❌ Erreur de connexion: \${error.message}
+                    </div>
+                \`;
+            }
+        }
+        
+        function closePredictionPopup() {
+            const popup = document.getElementById('predictionPopup');
+            if (popup) {
+                popup.classList.add('hidden');
+            }
+        }
+        
+        // Fermer popup en cliquant à l'extérieur
+        document.addEventListener('click', function(event) {
+            const popup = document.getElementById('predictionPopup');
+            if (popup && event.target === popup) {
+                closePredictionPopup();
+            }
+        });
 
         // Fonction pour charger la version dynamiquement
         async function loadVersion() {
@@ -2519,11 +2784,28 @@ app.get('/api/trading/check-positions', async (c) => {
       const ethPositions = await tradingEngine.getActivePositions('ETHUSDT')
       results.eth.positions_checked = ethPositions.length
 
-      // Prédiction intelligente pour fermetures anticipées
-      const ethPrediction = await predictor.predictNextHours('ETH', 4, ethPrice) // 4h horizon plus court
-      const ethClosures = await tradingEngine.checkAndClosePositionsIntelligent(ethPrediction, ethPrice)
-      results.eth.positions_closed = ethClosures.positions_closed
-      results.total_closures += ethClosures.positions_closed
+      // ✅ Utiliser la DERNIÈRE prédiction existante (PAS de nouvelle génération)
+      const existingEthPrediction = await c.env.DB.prepare(`
+        SELECT predicted_price, confidence_score, prediction_horizon 
+        FROM ai_predictions 
+        WHERE crypto = 'ETH' 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `).first()
+      
+      // Si prédiction récente existe, l'utiliser pour les décisions de trading
+      if (existingEthPrediction) {
+        const ethPrediction = {
+          current_price: ethPrice,
+          predicted_price: existingEthPrediction.predicted_price,
+          confidence: existingEthPrediction.confidence_score,
+          horizon: existingEthPrediction.prediction_horizon
+        }
+        const ethClosures = await tradingEngine.checkAndClosePositionsIntelligent(ethPrediction, ethPrice)
+        results.eth.positions_closed = ethClosures.positions_closed
+        results.total_closures += ethClosures.positions_closed
+      }
+
       
     } catch (error) {
       console.error('ETH position monitoring error:', error)
@@ -2535,11 +2817,28 @@ app.get('/api/trading/check-positions', async (c) => {
       const btcPositions = await tradingEngine.getActivePositions('BTCUSDT')
       results.btc.positions_checked = btcPositions.length
 
-      // Prédiction intelligente pour fermetures anticipées
-      const btcPrediction = await predictor.predictNextHours('BTC', 4, btcPrice)
-      const btcClosures = await tradingEngine.checkAndClosePositionsIntelligent(btcPrediction, btcPrice)
-      results.btc.positions_closed = btcClosures.positions_closed
-      results.total_closures += btcClosures.positions_closed
+      // ✅ Utiliser la DERNIÈRE prédiction existante (PAS de nouvelle génération)
+      const existingBtcPrediction = await c.env.DB.prepare(`
+        SELECT predicted_price, confidence_score, prediction_horizon 
+        FROM ai_predictions 
+        WHERE crypto = 'BTC' 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `).first()
+      
+      // Si prédiction récente existe, l'utiliser pour les décisions de trading
+      if (existingBtcPrediction) {
+        const btcPrediction = {
+          current_price: btcPrice,
+          predicted_price: existingBtcPrediction.predicted_price,
+          confidence: existingBtcPrediction.confidence_score,
+          horizon: existingBtcPrediction.prediction_horizon
+        }
+        const btcClosures = await tradingEngine.checkAndClosePositionsIntelligent(btcPrediction, btcPrice)
+        results.btc.positions_closed = btcClosures.positions_closed
+        results.total_closures += btcClosures.positions_closed
+      }
+
       
     } catch (error) {
       console.error('BTC position monitoring error:', error)
